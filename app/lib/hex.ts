@@ -1,0 +1,190 @@
+/**
+ * Hex math for the Golden Spirit battlefield.
+ *
+ * The board is 7 columns x 5 rows of pointy-top hexagons in an "odd-r" offset
+ * layout: odd-numbered rows sit half a hex to the right, which is why the two
+ * halves stay level with each other and the line between them zig-zags.
+ *
+ *   col 0..6 (left to right), row 0..4 (top to bottom)
+ *
+ * Columns 0-2 are the ally half, column 3 is the neutral middle ground and
+ * columns 4-6 are the enemy half. Offset coordinates are what the UI talks in
+ * (A1 … G5); distance and line-of-sight math converts to axial/cube first.
+ */
+
+export type Hex = { col: number; row: number };
+export type Zone = "ally" | "neutral" | "enemy";
+
+export const COLS = 7;
+export const ROWS = 5;
+
+/** "…the furthest enemy within 6 tiles" */
+export const MAX_RANGE = 6;
+/** "…pulls the target toward him by 1 tile 1 time per second… lasts for 3 seconds" */
+export const PULL_TILES = 3;
+
+const SQRT3 = Math.sqrt(3);
+
+/* ------------------------------------------------------------------ */
+/* Board                                                               */
+/* ------------------------------------------------------------------ */
+
+export const BOARD: Hex[] = Array.from({ length: COLS }, (_, col) =>
+  Array.from({ length: ROWS }, (_, row) => ({ col, row })),
+).flat();
+
+export function key(h: Hex): string {
+  return `${h.col},${h.row}`;
+}
+
+export function sameHex(a: Hex | null, b: Hex | null): boolean {
+  return !!a && !!b && a.col === b.col && a.row === b.row;
+}
+
+export function onBoard(h: Hex): boolean {
+  return h.col >= 0 && h.col < COLS && h.row >= 0 && h.row < ROWS;
+}
+
+export function zoneOf(h: Hex): Zone {
+  if (h.col < 3) return "ally";
+  if (h.col === 3) return "neutral";
+  return "enemy";
+}
+
+/** Human readable tile name, e.g. `C4` — column letter + 1-based row. */
+export function hexName(h: Hex): string {
+  return `${String.fromCharCode(65 + h.col)}${h.row + 1}`;
+}
+
+/* ------------------------------------------------------------------ */
+/* Offset <-> axial                                                    */
+/* ------------------------------------------------------------------ */
+
+type Axial = { q: number; r: number };
+
+function toAxial(h: Hex): Axial {
+  return { q: h.col - ((h.row - (h.row & 1)) >> 1), r: h.row };
+}
+
+function fromAxial(a: Axial): Hex {
+  return { col: a.q + ((a.r - (a.r & 1)) >> 1), row: a.r };
+}
+
+/* ------------------------------------------------------------------ */
+/* Distance                                                            */
+/* ------------------------------------------------------------------ */
+
+/** Number of tiles between two hexes. */
+export function hexDistance(a: Hex, b: Hex): number {
+  const pa = toAxial(a);
+  const pb = toAxial(b);
+  const dq = pa.q - pb.q;
+  const dr = pa.r - pb.r;
+  return (Math.abs(dq) + Math.abs(dq + dr) + Math.abs(dr)) / 2;
+}
+
+/** Every tile on the board at exactly `d` tiles from `from`. */
+export function tilesAtDistance(from: Hex, d: number): Hex[] {
+  return BOARD.filter((h) => hexDistance(from, h) === d);
+}
+
+/* ------------------------------------------------------------------ */
+/* Neighbours and the hook's pull path                                 */
+/* ------------------------------------------------------------------ */
+
+const AXIAL_DIRS: ReadonlyArray<readonly [number, number]> = [
+  [1, 0],
+  [1, -1],
+  [0, -1],
+  [-1, 0],
+  [-1, 1],
+  [0, 1],
+];
+
+/** The (up to six) adjacent tiles that are still on the board. */
+export function neighbors(h: Hex): Hex[] {
+  const a = toAxial(h);
+  return AXIAL_DIRS.map(([dq, dr]) =>
+    fromAxial({ q: a.q + dq, r: a.r + dr }),
+  ).filter(onBoard);
+}
+
+/**
+ * Where the target ends up after being reeled in.
+ *
+ * The hook drags the target one tile per second for three seconds. It only
+ * ever moves along real tiles, and it can't end up on top of Pesci, so the
+ * pull stops as soon as the target is next to him.
+ */
+export function pullPath(target: Hex, pesci: Hex): Hex[] {
+  const path: Hex[] = [target];
+  let current = target;
+
+  for (let step = 0; step < PULL_TILES; step++) {
+    if (hexDistance(current, pesci) <= 1) break;
+
+    const from = hexToPixel(pesci);
+    const next = neighbors(current)
+      .filter((h) => hexDistance(h, pesci) < hexDistance(current, pesci))
+      .sort((a, b) => {
+        // Prefer the neighbour that is physically closest to Pesci, so the
+        // drag reads as a straight line.
+        const pa = hexToPixel(a);
+        const pb = hexToPixel(b);
+        return (
+          Math.hypot(pa.x - from.x, pa.y - from.y) -
+          Math.hypot(pb.x - from.x, pb.y - from.y)
+        );
+      })[0];
+
+    if (!next) break;
+    path.push(next);
+    current = next;
+  }
+
+  return path;
+}
+
+/* ------------------------------------------------------------------ */
+/* Pixel layout                                                        */
+/* ------------------------------------------------------------------ */
+
+/** Circumradius of a hex, in SVG user units. */
+export const HEX_SIZE = 44;
+/** Vertical squash, mimicking the game's tilted camera. */
+export const Y_SQUASH = 0.85;
+/** Breathing room around the board for glows and the Pesci standee. */
+export const PAD = 46;
+
+/** Width of a pointy-top hex, and the horizontal step between neighbours. */
+export const HEX_W = SQRT3 * HEX_SIZE;
+/** Height of a (squashed) hex. */
+export const HEX_H = 2 * HEX_SIZE * Y_SQUASH;
+
+const ROW_STEP = 1.5 * HEX_SIZE * Y_SQUASH;
+
+// The extra half column of width is the odd rows' offset.
+export const BOARD_W = 2 * PAD + 7.5 * HEX_W;
+export const BOARD_H = 2 * PAD + 8 * HEX_SIZE * Y_SQUASH;
+
+export function hexToPixel(h: Hex): { x: number; y: number } {
+  return {
+    x: PAD + HEX_W * (h.col + 0.5 * (h.row & 1) + 0.5),
+    y: PAD + HEX_SIZE * Y_SQUASH + ROW_STEP * h.row,
+  };
+}
+
+/** `points` attribute for a pointy-top hexagon centred on `h`. */
+export function hexPoints(h: Hex, shrink = 0.94): string {
+  const { x, y } = hexToPixel(h);
+  const rx = HEX_SIZE * shrink;
+  const ry = HEX_SIZE * shrink * Y_SQUASH;
+
+  return Array.from({ length: 6 }, (_, i) => {
+    const angle = (Math.PI / 180) * (60 * i + 30);
+    return `${(x + rx * Math.cos(angle)).toFixed(2)},${(
+      y +
+      ry * Math.sin(angle)
+    ).toFixed(2)}`;
+  }).join(" ");
+}
