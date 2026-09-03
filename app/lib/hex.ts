@@ -29,9 +29,18 @@ const SQRT3 = Math.sqrt(3);
 /* Board                                                               */
 /* ------------------------------------------------------------------ */
 
-export const BOARD: Hex[] = Array.from({ length: COLS }, (_, col) =>
-  Array.from({ length: ROWS }, (_, row) => ({ col, row })),
-).flat();
+export const BOARD: Hex[] = [
+  // Row 0 (display "1"): B1, C1, D1, E1, F1
+  { col: 1, row: 0 }, { col: 2, row: 0 }, { col: 3, row: 0 }, { col: 4, row: 0 }, { col: 5, row: 0 },
+  // Row 1 (display "2"): A2, B2, C2, D2, E2, F2 (no G2)
+  { col: 0, row: 1 }, { col: 1, row: 1 }, { col: 2, row: 1 }, { col: 3, row: 1 }, { col: 4, row: 1 }, { col: 5, row: 1 },
+  // Row 2 (display "3"): A3, B3, C3, D3, E3, F3, G3
+  { col: 0, row: 2 }, { col: 1, row: 2 }, { col: 2, row: 2 }, { col: 3, row: 2 }, { col: 4, row: 2 }, { col: 5, row: 2 }, { col: 6, row: 2 },
+  // Row 3 (display "4"): A4, B4, C4, D4, E4, F4 (no G4)
+  { col: 0, row: 3 }, { col: 1, row: 3 }, { col: 2, row: 3 }, { col: 3, row: 3 }, { col: 4, row: 3 }, { col: 5, row: 3 },
+  // Row 4 (display "5"): B5, C5, D5, E5, F5 (no A5)
+  { col: 1, row: 4 }, { col: 2, row: 4 }, { col: 3, row: 4 }, { col: 4, row: 4 }, { col: 5, row: 4 },
+];
 
 export function key(h: Hex): string {
   return `${h.col},${h.row}`;
@@ -46,8 +55,9 @@ export function onBoard(h: Hex): boolean {
 }
 
 export function zoneOf(h: Hex): Zone {
-  if (h.col < 3) return "ally";
   if (h.col === 3) return "neutral";
+  if (h.col === 2 && (h.row === 1 || h.row === 3)) return "neutral";
+  if (h.col < 3) return "ally";
   return "enemy";
 }
 
