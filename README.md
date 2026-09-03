@@ -1,36 +1,61 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Pesci's Bizarre Fishing Simulator
 
-## Getting Started
+A range planner for Pesci's **Fisher Man** ultimate in *JoJo's Bizarre Adventure: Golden Spirit*.
 
-First, run the development server:
+> Pesci hurls a fishing hook at the target, dealing damage equal to 1400% of Attack to **the furthest enemy within 6 tiles** 1 time. While channeling this skill, Pesci pulls the target toward him by 1 tile 1 time per second. This skill lasts for 3 seconds, and the target remains Stunned throughout this duration.
+
+The hook picks its own victim — always the *furthest* body inside 6 tiles — so the only way to aim it is to stand somewhere that makes the enemy you want the furthest one. This app lets you work that out on the board instead of in the middle of a match.
+
+## The two modes
+
+**Place Pesci** — drop him on any tile, on either half. Every tile within 6 on the *opposite* half lights up with its distance, and the max-range ring (exactly 6 tiles) is highlighted in gold. Only the far half is shaded, because that's the only place an enemy can stand — and it keeps the two halves apart at a glance. Click his tile again to pick him back up.
+
+**Pick a target** — click the enemy you want on the hook. The gold tiles are every position that puts them as far away as the hook can reach. Click one to place Pesci and the board switches to the full range view, keeping the target and the other ideal positions highlighted so you can hop between them. Placing him anywhere else works too, if you want to see how much a worse angle costs you.
+
+In target mode the board also shows:
+
+- **Steal warnings** — tiles further from Pesci than your mark. An enemy standing on one of them takes the hook instead. At true max range this set is empty, which is exactly why max range is the clean cast.
+- **Ties** — tiles at the same distance as your mark, where the pick becomes a coin flip.
+- **The reel-in path** — the tiles the target gets dragged across during the 3-second channel, and where it ends up.
+
+## The board model
+
+Pointy-top hexes in an odd-r offset layout: odd rows sit half a tile to the right, which is what makes the boundary between the halves zig-zag in game. It is not a full 7×5 rectangle — the corners are cut, leaving 29 tiles (no A1, A5, G1, G2, G4 or G5).
+
+Columns A–C are the ally half and columns E–G are the enemy half. The neutral middle ground is column D plus the C2 and C4 notches; nothing deploys there, so those tiles can't be clicked, though the hook still flies over them like any other tile.
+
+Distances are hex steps (converted to cube coordinates), and plenty of pairs sit outside the hook's reach. One consequence worth knowing: not every tile has another tile exactly 6 steps away. For targets near the middle, the app falls back to the furthest position that does exist and says so.
+
+## Using the real game art
+
+The board draws hand-made SVG stand-ins for Pesci's portrait and the Fisher Man icon. Drop the real images into `public/` and they get picked up automatically, no code change:
+
+| File | Used for |
+| --- | --- |
+| `public/pesci-card.png` | the selected position marker |
+| `public/pesci-hook.png` | the selected target marker |
+
+Pesci's marker is clipped to the hex, so a portrait crop works better than a full card — the image is scaled to cover the tile and anything outside the hexagon is trimmed.
+
+## Running it
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Then open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+npm run build   # production build
+npm run start   # serve the production build
+npm run lint    # eslint
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Deploying
 
-## Learn More
+It's a stock Next.js App Router project with no server-side dependencies, environment variables or external services — the whole page prerenders as static content. Import the repo on [Vercel](https://vercel.com/new) and deploy with the defaults.
 
-To learn more about Next.js, take a look at the following resources:
+---
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Fan-made planning tool, not affiliated with the game or its publisher.
