@@ -659,11 +659,42 @@ function SkillCard() {
   );
 }
 
+const REPO_URL = "https://github.com/ambroSnoopi/pescis-bizarre-fishing-sim";
+/** `bug` and `enhancement` are GitHub's stock labels, so these prefill cleanly. */
+const BUG_URL = `${REPO_URL}/issues/new?labels=bug`;
+const FEATURE_URL = `${REPO_URL}/issues/new?labels=enhancement`;
+
+function FooterLink({ href, children }: { href: string; children: string }) {
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="rounded-sm text-slate-300 underline decoration-slate-600 underline-offset-4 transition hover:text-amber-200 hover:decoration-amber-300/60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-300"
+    >
+      {children}
+    </a>
+  );
+}
+
 function Footer() {
   return (
-    <footer className="border-t border-white/10 pt-4 text-xs text-slate-500">
-      Fan-made planning tool. Not affiliated with or endorsed by the game or its
-      publisher; all trademarks belong to their respective owners.
+    <footer className="flex flex-col gap-2 border-t border-white/10 pt-4 text-xs text-slate-500">
+      <p className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        <FooterLink href={BUG_URL}>Report a Bug</FooterLink>
+        <span aria-hidden="true" className="text-slate-700">
+          ·
+        </span>
+        <FooterLink href={FEATURE_URL}>Request a Feature</FooterLink>
+      </p>
+      <p>
+        Open source and happy to take contributions — the code lives{" "}
+        <FooterLink href={REPO_URL}>on GitHub</FooterLink>.
+      </p>
+      <p>
+        Fan-made planning tool. Not affiliated with or endorsed by the game or
+        its publisher; all trademarks belong to their respective owners.
+      </p>
     </footer>
   );
 }
