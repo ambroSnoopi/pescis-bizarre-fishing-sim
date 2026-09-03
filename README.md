@@ -8,9 +8,9 @@ The hook picks its own victim — always the *furthest* body inside 6 tiles — 
 
 ## The two modes
 
-**1 · Place Pesci** — drop him on any tile, on either half. Every tile within 6 lights up with its distance, and the max-range ring (exactly 6 tiles) is highlighted in gold. Click his tile again to pick him back up.
+**Place Pesci** — drop him on any tile, on either half. Every tile within 6 on the *opposite* half lights up with its distance, and the max-range ring (exactly 6 tiles) is highlighted in gold. Only the far half is shaded, because that's the only place an enemy can stand — and it keeps the two halves apart at a glance. Click his tile again to pick him back up.
 
-**2 · Pick a target** — click the enemy you want on the hook. The gold tiles are every position that puts them as far away as the hook can reach. Click one to place Pesci and the board switches to the full range view, keeping the target and the other ideal positions highlighted so you can hop between them. Placing him anywhere else works too, if you want to see how much a worse angle costs you.
+**Pick a target** — click the enemy you want on the hook. The gold tiles are every position that puts them as far away as the hook can reach. Click one to place Pesci and the board switches to the full range view, keeping the target and the other ideal positions highlighted so you can hop between them. Placing him anywhere else works too, if you want to see how much a worse angle costs you.
 
 In target mode the board also shows:
 
@@ -20,18 +20,22 @@ In target mode the board also shows:
 
 ## The board model
 
-Seven columns by five rows of pointy-top hexes in an odd-r offset layout: odd rows sit half a tile to the right, which is what makes the boundary between the halves zig-zag in game. Columns A–C are the ally half, column D is the neutral middle ground and columns E–G are the enemy half. Distances are hex steps (converted to cube coordinates), so the board's longest span is 8 tiles and plenty of pairs sit outside the hook's reach.
+Pointy-top hexes in an odd-r offset layout: odd rows sit half a tile to the right, which is what makes the boundary between the halves zig-zag in game. It is not a full 7×5 rectangle — the corners are cut, leaving 29 tiles (no A1, A5, G1, G2, G4 or G5).
 
-One consequence worth knowing: not every tile has another tile exactly 6 steps away. For targets near the middle, the app falls back to the furthest position that does exist and says so.
+Columns A–C are the ally half and columns E–G are the enemy half. The neutral middle ground is column D plus the C2 and C4 notches; nothing deploys there, so those tiles can't be clicked, though the hook still flies over them like any other tile.
+
+Distances are hex steps (converted to cube coordinates), and plenty of pairs sit outside the hook's reach. One consequence worth knowing: not every tile has another tile exactly 6 steps away. For targets near the middle, the app falls back to the furthest position that does exist and says so.
 
 ## Using the real game art
 
-The board draws hand-made SVG stand-ins for Pesci's card and the Fisher Man icon. Drop the real images into `public/` and they get picked up automatically, no code change:
+The board draws hand-made SVG stand-ins for Pesci's portrait and the Fisher Man icon. Drop the real images into `public/` and they get picked up automatically, no code change:
 
 | File | Used for |
 | --- | --- |
 | `public/pesci-card.png` | the selected position marker |
 | `public/pesci-hook.png` | the selected target marker |
+
+Pesci's marker is clipped to the hex, so a portrait crop works better than a full card — the image is scaled to cover the tile and anything outside the hexagon is trimmed.
 
 ## Running it
 

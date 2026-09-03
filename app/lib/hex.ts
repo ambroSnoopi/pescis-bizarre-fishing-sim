@@ -1,15 +1,17 @@
 /**
  * Hex math for the Golden Spirit battlefield.
  *
- * The board is 7 columns x 5 rows of pointy-top hexagons in an "odd-r" offset
- * layout: odd-numbered rows sit half a hex to the right, which is why the two
- * halves stay level with each other and the line between them zig-zags.
+ * Pointy-top hexagons in an "odd-r" offset layout: odd-numbered rows sit half a
+ * hex to the right, which is why the two halves stay level with each other and
+ * the line between them zig-zags.
  *
  *   col 0..6 (left to right), row 0..4 (top to bottom)
  *
- * Columns 0-2 are the ally half, column 3 is the neutral middle ground and
- * columns 4-6 are the enemy half. Offset coordinates are what the UI talks in
- * (A1 … G5); distance and line-of-sight math converts to axial/cube first.
+ * The grid is not a full 7x5 rectangle — the corners are cut, leaving 29 tiles
+ * (see `BOARD`). Column A is the ally back line, column D and the C2/C4 notches
+ * are the neutral middle ground, and columns E-G are the enemy half. Offset
+ * coordinates are what the UI talks in (A2 … G3); distance math converts to
+ * axial/cube first.
  */
 
 export type Hex = { col: number; row: number };
@@ -50,8 +52,11 @@ export function sameHex(a: Hex | null, b: Hex | null): boolean {
   return !!a && !!b && a.col === b.col && a.row === b.row;
 }
 
+const BOARD_KEYS = new Set(BOARD.map((h) => `${h.col},${h.row}`));
+
+/** The corners are cut, so this is membership in `BOARD`, not a bounds check. */
 export function onBoard(h: Hex): boolean {
-  return h.col >= 0 && h.col < COLS && h.row >= 0 && h.row < ROWS;
+  return BOARD_KEYS.has(`${h.col},${h.row}`);
 }
 
 export function zoneOf(h: Hex): Zone {
@@ -59,6 +64,22 @@ export function zoneOf(h: Hex): Zone {
   if (h.col === 2 && (h.row === 1 || h.row === 3)) return "neutral";
   if (h.col < 3) return "ally";
   return "enemy";
+}
+
+/**
+ * The middle ground is no-man's land: nobody deploys there, so it can hold
+ * neither Pesci nor a mark. It still counts for distance — the hook flies over
+ * it like any other tile.
+ */
+export function isPlayable(h: Hex): boolean {
+  return zoneOf(h) !== "neutral";
+}
+
+/** True when two tiles sit on opposite halves of the field. */
+export function oppositeHalves(a: Hex, b: Hex): boolean {
+  const za = zoneOf(a);
+  const zb = zoneOf(b);
+  return za !== "neutral" && zb !== "neutral" && za !== zb;
 }
 
 /** Human readable tile name, e.g. `C4` — column letter + 1-based row. */

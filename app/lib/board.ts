@@ -4,7 +4,9 @@ import {
   MAX_RANGE,
   Zone,
   hexDistance,
+  isPlayable,
   key,
+  oppositeHalves,
   pullPath,
   sameHex,
   zoneOf,
@@ -25,6 +27,12 @@ export type TileView = {
   /** Tiles from Pesci, or null when he isn't placed. */
   dist: number | null;
   inRange: boolean;
+  /**
+   * In range *and* on the far half, which is the only place an enemy can
+   * stand. Only these tiles get shaded, so the two halves stay legible once
+   * Pesci is down.
+   */
+  highlight: boolean;
   isMax: boolean;
   isIdeal: boolean;
   isTarget: boolean;
@@ -75,6 +83,7 @@ export function deriveBoard({
     mode === "target" && target
       ? BOARD.filter(
           (h) =>
+            isPlayable(h) &&
             (!allySideOnly || zoneOf(h) === "ally") &&
             hexDistance(target, h) <= MAX_RANGE,
         )
@@ -108,6 +117,8 @@ export function deriveBoard({
       targetInRange &&
       targetDist !== null &&
       dist !== null &&
+      // Nothing stands in the middle ground, so nothing there can steal.
+      isPlayable(hex) &&
       !sameHex(hex, target)
     ) {
       if (dist > targetDist) threat = "steal";
@@ -119,6 +130,7 @@ export function deriveBoard({
       zone: zoneOf(hex),
       dist,
       inRange,
+      highlight: inRange && !!pesci && oppositeHalves(pesci, hex),
       isMax: dist === MAX_RANGE,
       isIdeal: idealKeys.has(key(hex)),
       isTarget: sameHex(hex, target),
@@ -138,8 +150,10 @@ export function deriveBoard({
     targetDist,
     targetInRange,
     counts: {
-      inRange: tiles.filter((t) => t.inRange).length,
-      maxRange: tiles.filter((t) => t.isMax).length,
+      // Counted over the far half only, so the numbers match what's shaded:
+      // tiles an enemy could actually be standing on.
+      inRange: tiles.filter((t) => t.highlight).length,
+      maxRange: tiles.filter((t) => t.highlight && t.isMax).length,
       ideal: ideal.length,
       steal: tiles.filter((t) => t.threat === "steal").length,
       tie: tiles.filter((t) => t.threat === "tie").length,

@@ -57,30 +57,25 @@ type TokenProps = {
 };
 
 /* ------------------------------------------------------------------ */
-/* Pesci's character card — marks the selected position                */
+/* Pesci's portrait — marks the selected position                      */
 /* ------------------------------------------------------------------ */
 
-const CARD_RATIO = 0.74;
+/**
+ * A pointy-top hexagon filling a 100x100 viewBox. Rendered into a box the size
+ * of a board hex it lands exactly on the tile, squash and all, so the token
+ * sits *in* the grid instead of standing on top of it.
+ */
+const HEX_PATH = "M50 0 L100 25 L100 75 L50 100 L0 75 L0 25 Z";
 
-export function PesciToken({ cx, cy, height }: TokenProps) {
+export function PesciToken({
+  cx,
+  cy,
+  width,
+  height,
+}: TokenProps & { width: number }) {
   const custom = useCustomAsset(PESCI_CARD_SRC);
-  const width = height * CARD_RATIO;
   const x = cx - width / 2;
   const y = cy - height / 2;
-
-  if (custom) {
-    return (
-      <image
-        href={PESCI_CARD_SRC}
-        x={x}
-        y={y}
-        width={width}
-        height={height}
-        preserveAspectRatio="xMidYMid meet"
-        className="pointer-events-none"
-      />
-    );
-  }
 
   return (
     <svg
@@ -88,11 +83,15 @@ export function PesciToken({ cx, cy, height }: TokenProps) {
       y={y}
       width={width}
       height={height}
-      viewBox="0 0 74 100"
+      viewBox="0 0 100 100"
+      preserveAspectRatio="none"
       className="pointer-events-none"
       aria-hidden="true"
     >
       <defs>
+        <clipPath id="pesciHexClip">
+          <path d={HEX_PATH} />
+        </clipPath>
         <linearGradient id="cardBody" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor="#7d2230" />
           <stop offset="55%" stopColor="#4a1622" />
@@ -105,106 +104,72 @@ export function PesciToken({ cx, cy, height }: TokenProps) {
         </linearGradient>
       </defs>
 
-      <rect
-        x="1.5"
-        y="1.5"
-        width="71"
-        height="97"
-        rx="5"
-        fill="url(#cardBody)"
+      <g clipPath="url(#pesciHexClip)">
+        {custom ? (
+          <image
+            href={PESCI_CARD_SRC}
+            x="0"
+            y="0"
+            width="100"
+            height="100"
+            preserveAspectRatio="xMidYMid slice"
+          />
+        ) : (
+          <>
+            <rect width="100" height="100" fill="url(#cardBody)" />
+
+            {/* Shoulders */}
+            <path d="M8 100 Q50 66 92 100 Z" fill="#1d2a3a" />
+            <path d="M20 100 Q50 76 80 100 Z" fill="#2f4257" />
+
+            {/* Head + Pesci's unmistakable profile */}
+            <path
+              d="M36 40 Q35 25 50 24 Q65 25 65 41 L65 59 Q65 74 50 74 Q35 74 35 58 Z"
+              fill="#d9a271"
+            />
+            <path d="M35 49 L24 56 L35 61 Z" fill="#d9a271" />
+            <path d="M35 49 L24 56 L35 61 Z" fill="#000" opacity="0.12" />
+
+            {/* Hair */}
+            <path
+              d="M32 38 Q31 18 50 17 Q69 18 68 38 Q63 27 50 27 Q37 27 32 38 Z"
+              fill="#3f7d3a"
+            />
+            <path d="M39 19 L43 8 L48 19 Z" fill="#4f9a44" />
+            <path d="M48 19 L53 7 L58 20 Z" fill="#4f9a44" />
+            <path d="M33 26 L32 14 L41 22 Z" fill="#4f9a44" />
+            <path d="M63 23 L69 13 L69 27 Z" fill="#4f9a44" />
+
+            {/* Eyes */}
+            <ellipse cx="43" cy="46" rx="3" ry="3.4" fill="#fff" />
+            <ellipse cx="58" cy="46" rx="3" ry="3.4" fill="#fff" />
+            <circle cx="43.5" cy="46.4" r="1.6" fill="#20130d" />
+            <circle cx="57.5" cy="46.4" r="1.6" fill="#20130d" />
+            <path
+              d="M38 40 L47 42 M53 42 L62 40"
+              stroke="#20130d"
+              strokeWidth="1.6"
+              strokeLinecap="round"
+              fill="none"
+            />
+            <path
+              d="M43 65 Q50 62 57 65"
+              stroke="#8c5b3e"
+              strokeWidth="1.4"
+              fill="none"
+              strokeLinecap="round"
+            />
+          </>
+        )}
+      </g>
+
+      {/* Gold rim, drawn last so it sits over the portrait */}
+      <path
+        d={HEX_PATH}
+        fill="none"
         stroke="url(#cardFrame)"
-        strokeWidth="3"
-      />
-      <rect
-        x="5"
-        y="5"
-        width="64"
-        height="90"
-        rx="3"
-        fill="none"
-        stroke="#e8c86a"
-        strokeWidth="0.8"
-        opacity="0.55"
-      />
-
-      {/* Shoulders */}
-      <path d="M12 96 Q37 68 62 96 Z" fill="#1d2a3a" />
-      <path d="M20 96 Q37 76 54 96 Z" fill="#2f4257" />
-
-      {/* Head + Pesci's unmistakable profile */}
-      <path
-        d="M27 42 Q26 30 37 29 Q49 30 49 43 L49 58 Q49 70 37 70 Q26 70 26 57 Z"
-        fill="#d9a271"
-      />
-      <path d="M26 50 L17 56 L26 60 Z" fill="#d9a271" />
-      <path d="M26 50 L17 56 L26 60 Z" fill="#000" opacity="0.12" />
-
-      {/* Hair */}
-      <path
-        d="M24 40 Q23 24 37 23 Q52 24 51 40 Q47 31 37 31 Q28 31 24 40 Z"
-        fill="#3f7d3a"
-      />
-      <path d="M30 25 L33 15 L37 25 Z" fill="#4f9a44" />
-      <path d="M37 25 L41 14 L45 26 Z" fill="#4f9a44" />
-      <path d="M25 30 L24 20 L31 27 Z" fill="#4f9a44" />
-      <path d="M48 28 L52 19 L52 31 Z" fill="#4f9a44" />
-
-      {/* Eyes */}
-      <ellipse cx="32" cy="47" rx="2.6" ry="3" fill="#fff" />
-      <ellipse cx="44" cy="47" rx="2.6" ry="3" fill="#fff" />
-      <circle cx="32.4" cy="47.4" r="1.4" fill="#20130d" />
-      <circle cx="43.6" cy="47.4" r="1.4" fill="#20130d" />
-      <path
-        d="M28 42 L36 44 M40 44 L48 42"
-        stroke="#20130d"
-        strokeWidth="1.4"
-        strokeLinecap="round"
-        fill="none"
-      />
-      <path
-        d="M31 63 Q37 60 43 63"
-        stroke="#8c5b3e"
-        strokeWidth="1.2"
-        fill="none"
-        strokeLinecap="round"
-      />
-
-      {/* Level badge */}
-      <rect x="6" y="6" width="18" height="11" rx="3" fill="#a4142a" />
-      <text
-        x="15"
-        y="14.6"
-        textAnchor="middle"
-        fontSize="8"
-        fontWeight="700"
-        fill="#ffe9a8"
-      >
-        100
-      </text>
-
-      {/* Class pip */}
-      <circle cx="63" cy="12" r="6.5" fill="#1b1226" stroke="#e8c86a" />
-      <path
-        d="M63 15.6 C58.6 12.4 59.4 9.2 61.4 9 C62.4 8.9 63 9.7 63 9.7 C63 9.7 63.6 8.9 64.6 9 C66.6 9.2 67.4 12.4 63 15.6 Z"
-        fill="#e8c86a"
-      />
-
-      {/* Rank strip */}
-      <text
-        x="8"
-        y="93"
-        fontSize="10"
-        fontWeight="700"
-        fill="#d9a3ff"
-        fontStyle="italic"
-      >
-        S11
-      </text>
-      <path
-        d="M60 82 L62 87.5 L68 87.5 L63.2 91 L65 96.5 L60 93.2 L55 96.5 L56.8 91 L52 87.5 L58 87.5 Z"
-        fill="#9be8ff"
-        stroke="#e8c86a"
-        strokeWidth="0.6"
+        strokeWidth="5"
+        strokeLinejoin="round"
       />
     </svg>
   );

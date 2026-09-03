@@ -10,6 +10,7 @@ import {
   PULL_TILES,
   hexDistance,
   hexName,
+  isPlayable,
   sameHex,
   zoneOf,
 } from "../lib/hex";
@@ -38,6 +39,9 @@ export default function Simulator() {
   }
 
   function handlePick(hex: Hex) {
+    // The middle ground is no-man's land — nothing deploys there.
+    if (!isPlayable(hex)) return;
+
     if (mode === "place") {
       setPesci(sameHex(hex, pesci) ? null : hex);
       return;
@@ -168,7 +172,7 @@ function Header() {
       </h1>
       <p className="max-w-3xl text-sm text-slate-400">
         Beach Boy only bites at the right distance. Line up{" "}
-        <span className="text-amber-200">Fisher Man</span> on the 7×5 hex
+        <span className="text-amber-200">Fisher Man</span> on the hex
         battlefield before you waste the cast.
       </p>
     </header>
@@ -183,8 +187,8 @@ function ModeTabs({
   onChange: (m: Mode) => void;
 }) {
   const tabs: { id: Mode; label: string; sub: string }[] = [
-    { id: "place", label: "1 · Place Pesci", sub: "See his range" },
-    { id: "target", label: "2 · Pick a target", sub: "Find the cast spot" },
+    { id: "place", label: "Place Pesci", sub: "See his range" },
+    { id: "target", label: "Pick a target", sub: "Find the cast spot" },
   ];
 
   return (
@@ -226,8 +230,8 @@ function Instructions({
   let text: string;
   if (mode === "place") {
     text = hasPesci
-      ? "Click another tile to move Pesci, or click his tile again to pick him up. Gold tiles are exactly 6 away — the max-range ring."
-      : "Click any tile to drop Pesci there. Every tile within 6 gets lit up, with the max-range ring in gold.";
+      ? "Click another tile to move Pesci, or click his tile again to pick him up. Only the far half is shaded — that's where enemies stand. Gold tiles are exactly 6 away."
+      : "Click any tile outside the middle ground to drop Pesci there. Every tile within 6 on the opposite half lights up, with the max-range ring in gold.";
   } else if (awaitingTarget) {
     text =
       "Click the enemy you want on the hook. The gold tiles that appear are every spot that puts them as far away as the hook can reach.";
@@ -357,7 +361,12 @@ function Readout({
 
         {pesci && (
           <>
-            <Row label="Tiles in range" value={counts.inRange} />
+            <Row
+              label={`${
+                zoneOf(pesci) === "ally" ? "Enemy" : "Ally"
+              } tiles in range`}
+              value={counts.inRange}
+            />
             <Row
               label="At max range"
               value={<span className="text-amber-300">{counts.maxRange}</span>}
@@ -412,7 +421,7 @@ function Readout({
 
       {mode === "target" && target && !pesci && view.idealDist < MAX_RANGE && (
         <p className="mt-3 rounded-lg border border-sky-300/30 bg-sky-400/10 px-3 py-2 text-xs text-sky-200">
-          Nothing on a 7×5 board is a full {MAX_RANGE} tiles from{" "}
+          Nothing on this board is a full {MAX_RANGE} tiles from{" "}
           {hexName(target)} — {view.idealDist} is as far as you can back off.
         </p>
       )}
@@ -566,8 +575,24 @@ function Legend({ mode }: { mode: Mode }) {
   return (
     <div className="grid grid-cols-2 gap-x-4 gap-y-2 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 sm:grid-cols-3">
       <Swatch
-        color="rgba(96,165,250,0.16)"
-        border="rgba(147,197,253,0.4)"
+        color="#101d24"
+        border="rgba(125,211,252,0.4)"
+        label="Ally half (columns A–C)"
+      />
+      <Swatch
+        color="#15151f"
+        border="rgba(226,214,168,0.4)"
+        dashed
+        label="Neutral middle (column D)"
+      />
+      <Swatch
+        color="#231019"
+        border="rgba(248,113,113,0.5)"
+        label="Enemy half (columns E–G)"
+      />
+      <Swatch
+        color="rgba(245,158,11,0.14)"
+        border="rgba(251,191,36,0.4)"
         label="Within 6 tiles"
       />
       <Swatch
@@ -575,7 +600,7 @@ function Legend({ mode }: { mode: Mode }) {
         border="#facc15"
         label="Max range (exactly 6)"
       />
-      {mode === "target" ? (
+      {mode === "target" && (
         <>
           <Swatch
             color="rgba(244,114,182,0.18)"
@@ -598,25 +623,6 @@ function Legend({ mode }: { mode: Mode }) {
             border="#fbbf24"
             dashed
             label="Ties with your target"
-          />
-        </>
-      ) : (
-        <>
-          <Swatch
-            color="#101d24"
-            border="rgba(125,211,252,0.4)"
-            label="Ally half (columns A–C)"
-          />
-          <Swatch
-            color="#15151f"
-            border="rgba(226,214,168,0.4)"
-            dashed
-            label="Neutral middle (column D)"
-          />
-          <Swatch
-            color="#231019"
-            border="rgba(248,113,113,0.5)"
-            label="Enemy half (columns E–G)"
           />
         </>
       )}
@@ -654,16 +660,8 @@ function SkillCard() {
 function Footer() {
   return (
     <footer className="border-t border-white/10 pt-4 text-xs text-slate-500">
-      Fan-made planning tool. Distances use hex-grid steps on a 7×5 board (three
-      ally columns, one neutral, three enemy). Drop your own{" "}
-      <code className="rounded bg-white/5 px-1 py-0.5 text-slate-400">
-        public/pesci-card.png
-      </code>{" "}
-      and{" "}
-      <code className="rounded bg-white/5 px-1 py-0.5 text-slate-400">
-        public/pesci-hook.png
-      </code>{" "}
-      to swap in the real art.
+      Fan-made planning tool. Not affiliated with or endorsed by the game or its
+      publisher; all trademarks belong to their respective owners.
     </footer>
   );
 }

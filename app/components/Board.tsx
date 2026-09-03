@@ -5,6 +5,7 @@ import {
   BOARD_H,
   BOARD_W,
   HEX_H,
+  HEX_W,
   Hex,
   MAX_RANGE,
   PAD,
@@ -27,11 +28,14 @@ const ZONE_STROKE: Record<TileView["zone"], string> = {
   enemy: "rgba(248, 113, 113, 0.38)",
 };
 
-/** Rings get slightly denser the further out they sit. */
+/**
+ * Rings get slightly denser the further out they sit, warming towards the gold
+ * of the max-range ring so the whole range reads as one scale.
+ */
 function ringFill(dist: number): string {
   return dist === MAX_RANGE
     ? "rgba(250, 204, 21, 0.26)"
-    : `rgba(96, 165, 250, ${(0.05 + dist * 0.022).toFixed(3)})`;
+    : `rgba(245, 158, 11, ${(0.04 + dist * 0.025).toFixed(3)})`;
 }
 
 export type BoardProps = {
@@ -73,7 +77,7 @@ export default function Board({
       viewBox={`0 0 ${BOARD_W} ${BOARD_H}`}
       className="w-full select-none"
       role="group"
-      aria-label="Battlefield, 7 by 5 hex grid"
+      aria-label="Battlefield, 29 tile hex grid"
     >
       <defs>
         <radialGradient id="fieldBg" cx="50%" cy="45%" r="75%">
@@ -175,16 +179,16 @@ export default function Board({
         ))}
       </g>
 
-      {/* Range rings */}
+      {/* Range rings — far half only, so the two halves stay readable */}
       <g>
         {tiles
-          .filter((t) => t.inRange)
+          .filter((t) => t.highlight)
           .map((t) => (
             <polygon
               key={`ring-${t.hex.col}-${t.hex.row}`}
               points={hexPoints(t.hex)}
               fill={ringFill(t.dist as number)}
-              stroke="rgba(147, 197, 253, 0.28)"
+              stroke="rgba(251, 191, 36, 0.3)"
               strokeWidth={1.2}
             />
           ))}
@@ -214,7 +218,7 @@ export default function Board({
       {/* Max range ring — the sweet spot */}
       <g filter="url(#goldGlow)">
         {tiles
-          .filter((t) => t.isMax)
+          .filter((t) => t.isMax && t.highlight)
           .map((t) => (
             <polygon
               key={`max-${t.hex.col}-${t.hex.row}`}
@@ -314,9 +318,9 @@ export default function Board({
           const { x, y } = hexToPixel(t.hex);
           if (t.isPesci || t.isTarget) return null;
 
-          // Tiles Pesci can't reach keep their name, so the board stays
-          // readable while you compare positions.
-          if (!t.inRange) {
+          // Distances are only worth reading where an enemy could stand, so
+          // everything else keeps its name and the board stays legible.
+          if (!t.highlight) {
             return (
               <text
                 key={`name-${t.hex.col}-${t.hex.row}`}
@@ -325,7 +329,7 @@ export default function Board({
                 textAnchor="middle"
                 fontSize="13"
                 fill={
-                  t.dist === null
+                  t.dist === null || t.inRange
                     ? "rgba(148, 163, 184, 0.45)"
                     : "rgba(148, 163, 184, 0.25)"
                 }
@@ -363,7 +367,12 @@ export default function Board({
           const { x, y } = hexToPixel(pesci);
           return (
             <g filter="url(#softGlow)">
-              <PesciToken cx={x} cy={y - HEX_H * 0.1} height={HEX_H * 1.5} />
+              <PesciToken
+                cx={x}
+                cy={y}
+                width={HEX_W * 0.88}
+                height={HEX_H * 0.88}
+              />
             </g>
           );
         })()}
@@ -372,9 +381,10 @@ export default function Board({
       <g>
         {tiles.map((t) => {
           const isHovered = sameHex(hovered, t.hex);
+          const playable = t.zone !== "neutral";
           const label = [
             hexName(t.hex),
-            `${t.zone} side`,
+            playable ? `${t.zone} side` : "neutral middle, nobody stands here",
             t.dist === null
               ? null
               : t.isPesci
@@ -391,23 +401,34 @@ export default function Board({
               key={`hit-${t.hex.col}-${t.hex.row}`}
               points={hexPoints(t.hex)}
               fill="transparent"
-              stroke={isHovered ? "rgba(255,255,255,0.85)" : "transparent"}
+              stroke={
+                isHovered && playable ? "rgba(255,255,255,0.85)" : "transparent"
+              }
               strokeWidth={2}
-              tabIndex={0}
-              role="button"
+              tabIndex={playable ? 0 : undefined}
+              role={playable ? "button" : undefined}
               aria-label={label}
-              className="cursor-pointer outline-none focus-visible:stroke-white"
-              onClick={() => onPick(t.hex)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
-                  e.preventDefault();
-                  onPick(t.hex);
-                }
-              }}
+              aria-disabled={playable ? undefined : true}
+              className={
+                playable
+                  ? "cursor-pointer outline-none focus-visible:stroke-white"
+                  : "cursor-not-allowed outline-none"
+              }
+              onClick={playable ? () => onPick(t.hex) : undefined}
+              onKeyDown={
+                playable
+                  ? (e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        onPick(t.hex);
+                      }
+                    }
+                  : undefined
+              }
               onMouseEnter={() => onHover(t.hex)}
               onMouseLeave={() => onHover(null)}
-              onFocus={() => onHover(t.hex)}
-              onBlur={() => onHover(null)}
+              onFocus={playable ? () => onHover(t.hex) : undefined}
+              onBlur={playable ? () => onHover(null) : undefined}
             >
               <title>{label}</title>
             </polygon>
