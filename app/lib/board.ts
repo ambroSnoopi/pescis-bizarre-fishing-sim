@@ -21,9 +21,48 @@ export type Mode = "place" | "target";
  */
 export type Threat = "none" | "steal" | "tie";
 
+/**
+ * What clicking a tile does, given the current selection.
+ *
+ * In target mode the two halves mean different things: the mark's own half
+ * re-marks, the far half is where Pesci can stand, and the hook itself starts
+ * over. Deriving it once keeps the click handler and the tile labels honest
+ * about each other.
+ */
+export type TileAction =
+  | "none"
+  | "set-target"
+  | "place-pesci"
+  | "lift-pesci"
+  | "reset";
+
+export function actionFor(
+  hex: Hex,
+  {
+    mode,
+    pesci,
+    target,
+  }: { mode: Mode; pesci: Hex | null; target: Hex | null },
+): TileAction {
+  if (!isPlayable(hex)) return "none";
+
+  if (mode === "place") {
+    return sameHex(hex, pesci) ? "lift-pesci" : "place-pesci";
+  }
+
+  if (!target) return "set-target";
+  // Clicking the hook again drops everything and starts a fresh cast.
+  if (sameHex(hex, target)) return "reset";
+  // Enemies share a half, so anything on the mark's side re-marks instead.
+  if (!oppositeHalves(target, hex)) return "set-target";
+  return sameHex(hex, pesci) ? "lift-pesci" : "place-pesci";
+}
+
 export type TileView = {
   hex: Hex;
   zone: Zone;
+  /** What a click here would do right now. */
+  action: TileAction;
   /** Tiles from Pesci, or null when he isn't placed. */
   dist: number | null;
   inRange: boolean;
@@ -72,20 +111,18 @@ export function deriveBoard({
   mode,
   pesci,
   target,
-  allySideOnly,
 }: {
   mode: Mode;
   pesci: Hex | null;
   target: Hex | null;
-  allySideOnly: boolean;
 }): BoardView {
+  // Pesci casts from the half opposite his mark, so that's the only place a
+  // suggested position can be. `oppositeHalves` already rules out neutral.
   const candidates =
     mode === "target" && target
       ? BOARD.filter(
           (h) =>
-            isPlayable(h) &&
-            (!allySideOnly || zoneOf(h) === "ally") &&
-            hexDistance(target, h) <= MAX_RANGE,
+            oppositeHalves(target, h) && hexDistance(target, h) <= MAX_RANGE,
         )
       : [];
 
@@ -128,6 +165,7 @@ export function deriveBoard({
     return {
       hex,
       zone: zoneOf(hex),
+      action: actionFor(hex, { mode, pesci, target }),
       dist,
       inRange,
       highlight: inRange && !!pesci && oppositeHalves(pesci, hex),

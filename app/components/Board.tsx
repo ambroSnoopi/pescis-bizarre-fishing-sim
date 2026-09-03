@@ -28,6 +28,24 @@ const ZONE_STROKE: Record<TileView["zone"], string> = {
   enemy: "rgba(248, 113, 113, 0.38)",
 };
 
+/** Spoken hint for what a click does, appended to each tile's label. */
+const ACTION_HINT: Record<TileView["action"], string | null> = {
+  none: null,
+  "set-target": "click to mark this enemy",
+  "place-pesci": "click to place Pesci",
+  "lift-pesci": "click to pick Pesci up",
+  reset: "click to clear the board",
+};
+
+/** Hover outline, colour-coded to the same actions. */
+const ACTION_STROKE: Record<TileView["action"], string> = {
+  none: "transparent",
+  "set-target": "#f472b6",
+  "place-pesci": "rgba(255,255,255,0.85)",
+  "lift-pesci": "rgba(255,255,255,0.85)",
+  reset: "#fb7185",
+};
+
 /**
  * Rings get slightly denser the further out they sit, warming towards the gold
  * of the max-range ring so the whole range reads as one scale.
@@ -381,7 +399,7 @@ export default function Board({
       <g>
         {tiles.map((t) => {
           const isHovered = sameHex(hovered, t.hex);
-          const playable = t.zone !== "neutral";
+          const playable = t.action !== "none";
           const label = [
             hexName(t.hex),
             playable ? `${t.zone} side` : "neutral middle, nobody stands here",
@@ -392,6 +410,7 @@ export default function Board({
                 : `${t.dist} tiles from Pesci`,
             t.isTarget ? "selected target" : null,
             t.isIdeal ? "ideal position" : null,
+            ACTION_HINT[t.action],
           ]
             .filter(Boolean)
             .join(", ");
@@ -402,7 +421,7 @@ export default function Board({
               points={hexPoints(t.hex)}
               fill="transparent"
               stroke={
-                isHovered && playable ? "rgba(255,255,255,0.85)" : "transparent"
+                isHovered && playable ? ACTION_STROKE[t.action] : "transparent"
               }
               strokeWidth={2}
               tabIndex={playable ? 0 : undefined}
