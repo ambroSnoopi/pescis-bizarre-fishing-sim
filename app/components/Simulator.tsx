@@ -95,14 +95,6 @@ export default function Simulator() {
         </div>
 
         <aside className="flex w-full shrink-0 flex-col gap-4 lg:w-[22rem]">
-          <Readout
-            mode={mode}
-            pesci={pesci}
-            target={target}
-            hovered={hovered}
-            view={view}
-          />
-
           <Panel title="Options">
             <div className="flex flex-col gap-2">
               {mode === "target" && (
@@ -148,6 +140,14 @@ export default function Simulator() {
             </div>
           </Panel>
 
+          <Readout
+            mode={mode}
+            pesci={pesci}
+            target={target}
+            hovered={hovered}
+            view={view}
+          />
+
           <SkillCard />
         </aside>
       </div>
@@ -188,7 +188,7 @@ function ModeTabs({
 }) {
   const tabs: { id: Mode; label: string; sub: string }[] = [
     { id: "place", label: "Place Pesci", sub: "See his range" },
-    { id: "target", label: "Pick a target", sub: "Find the cast spot" },
+    { id: "target", label: "Pick a Target", sub: "Find a fishing spot" },
   ];
 
   return (
@@ -201,7 +201,7 @@ function ModeTabs({
             type="button"
             onClick={() => onChange(tab.id)}
             aria-pressed={active}
-            className={`rounded-lg px-3 py-2 text-left transition ${
+            className={`rounded-lg px-3 py-2 text-center transition ${
               active
                 ? "bg-gradient-to-b from-amber-400/25 to-amber-600/15 text-amber-100 ring-1 ring-amber-300/50"
                 : "text-slate-400 hover:bg-white/5 hover:text-slate-200"

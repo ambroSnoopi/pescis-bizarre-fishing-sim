@@ -47,6 +47,14 @@ body {
       transparent 50%
     ),
     var(--background);
+  /*
+   * The body's background propagates to the canvas, and the propagated
+   * positioning area is the *root* box — which is `h-full`, i.e. one viewport
+   * tall. Left to repeat, the glows tile again every viewport on any page
+   * taller than the screen (very visible on mobile). Paint them once, at the
+   * top, and let the flat colour carry the rest of the scroll.
+   */
+  background-repeat: no-repeat;
   color: var(--foreground);
   font-family: var(--font-geist-sans), system-ui, sans-serif;
 }
