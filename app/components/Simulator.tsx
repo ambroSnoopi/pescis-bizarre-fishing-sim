@@ -3,14 +3,13 @@
 import { useMemo, useState } from "react";
 
 import Board from "./Board";
-import { Mode, deriveBoard } from "../lib/board";
+import { Mode, actionFor, deriveBoard } from "../lib/board";
 import {
   Hex,
   MAX_RANGE,
   PULL_TILES,
   hexDistance,
   hexName,
-  isPlayable,
   sameHex,
   zoneOf,
 } from "../lib/hex";
@@ -22,11 +21,10 @@ export default function Simulator() {
   const [hovered, setHovered] = useState<Hex | null>(null);
   const [showThreats, setShowThreats] = useState(true);
   const [showPull, setShowPull] = useState(true);
-  const [allySideOnly, setAllySideOnly] = useState(false);
 
   const view = useMemo(
-    () => deriveBoard({ mode, pesci, target, allySideOnly }),
-    [mode, pesci, target, allySideOnly],
+    () => deriveBoard({ mode, pesci, target }),
+    [mode, pesci, target],
   );
 
   const awaitingTarget = mode === "target" && !target;
@@ -39,21 +37,24 @@ export default function Simulator() {
   }
 
   function handlePick(hex: Hex) {
-    // The middle ground is no-man's land — nothing deploys there.
-    if (!isPlayable(hex)) return;
-
-    if (mode === "place") {
-      setPesci(sameHex(hex, pesci) ? null : hex);
-      return;
+    switch (actionFor(hex, { mode, pesci, target })) {
+      case "set-target":
+        // Re-marking keeps Pesci: he's on the far half either way, so his
+        // position is still legal and you get the new distance immediately.
+        setTarget(hex);
+        return;
+      case "place-pesci":
+        setPesci(hex);
+        return;
+      case "lift-pesci":
+        setPesci(null);
+        return;
+      case "reset":
+        reset();
+        return;
+      case "none":
+        return;
     }
-    if (!target) {
-      setTarget(hex);
-      setPesci(null);
-      return;
-    }
-    // Standing on your own mark isn't a position — ignore it.
-    if (sameHex(hex, target)) return;
-    setPesci(sameHex(hex, pesci) ? null : hex);
   }
 
   function reset() {
@@ -95,14 +96,6 @@ export default function Simulator() {
         </div>
 
         <aside className="flex w-full shrink-0 flex-col gap-4 lg:w-[22rem]">
-          <Readout
-            mode={mode}
-            pesci={pesci}
-            target={target}
-            hovered={hovered}
-            view={view}
-          />
-
           <Panel title="Options">
             <div className="flex flex-col gap-2">
               {mode === "target" && (
@@ -118,12 +111,6 @@ export default function Simulator() {
                     hint={`Where the target is dragged over ${PULL_TILES}s`}
                     checked={showPull}
                     onChange={setShowPull}
-                  />
-                  <Toggle
-                    label="Only suggest ally-side spots"
-                    hint="Hide max-range tiles past the middle ground"
-                    checked={allySideOnly}
-                    onChange={setAllySideOnly}
                   />
                 </>
               )}
@@ -148,6 +135,14 @@ export default function Simulator() {
             </div>
           </Panel>
 
+          <Readout
+            mode={mode}
+            pesci={pesci}
+            target={target}
+            hovered={hovered}
+            view={view}
+          />
+
           <SkillCard />
         </aside>
       </div>
@@ -164,11 +159,17 @@ export default function Simulator() {
 function Header() {
   return (
     <header className="flex flex-col gap-1">
+      {/* Both titles shrink on narrow screens so they stay on one line. */}
       <p className="font-mono text-xs uppercase tracking-[0.3em] text-amber-300/70">
-        JoJo&apos;s Bizarre Adventure · Golden Spirit
+        JoJo&apos;s Bizarre Adventure ·{" "}
+        <span className="sm:hidden">GS</span>
+        <span className="hidden sm:inline">Golden Spirit</span>
       </p>
       <h1 className="text-2xl font-bold tracking-tight text-transparent sm:text-4xl bg-gradient-to-r from-amber-200 via-amber-400 to-amber-200 bg-clip-text">
-        Pesci&apos;s Bizarre Fishing Simulator
+        <span className="sm:hidden">Pesci&apos;s Bizarre Fishing Sim</span>
+        <span className="hidden sm:inline">
+          Pesci&apos;s Bizarre Fishing Simulator
+        </span>
       </h1>
       <p className="max-w-3xl text-sm text-slate-400">
         Beach Boy only bites at the right distance. Line up{" "}
@@ -188,7 +189,7 @@ function ModeTabs({
 }) {
   const tabs: { id: Mode; label: string; sub: string }[] = [
     { id: "place", label: "Place Pesci", sub: "See his range" },
-    { id: "target", label: "Pick a target", sub: "Find the cast spot" },
+    { id: "target", label: "Pick a Target", sub: "Find a fishing spot" },
   ];
 
   return (
@@ -201,7 +202,7 @@ function ModeTabs({
             type="button"
             onClick={() => onChange(tab.id)}
             aria-pressed={active}
-            className={`rounded-lg px-3 py-2 text-left transition ${
+            className={`rounded-lg px-3 py-2 text-center transition ${
               active
                 ? "bg-gradient-to-b from-amber-400/25 to-amber-600/15 text-amber-100 ring-1 ring-amber-300/50"
                 : "text-slate-400 hover:bg-white/5 hover:text-slate-200"
@@ -237,12 +238,13 @@ function Instructions({
       "Click the enemy you want on the hook. The gold tiles that appear are every spot that puts them as far away as the hook can reach.";
   } else if (hasPesci) {
     text =
-      "Pesci is cast. Click any other gold tile to slide him to a different ideal spot, or any tile at all to test a worse angle.";
+      "Pesci is cast. Click another tile on his half to move him, anywhere on the target's half to re-mark, or the hook itself to start over.";
   } else {
-    text =
+    const opening =
       idealDist === MAX_RANGE
-        ? "Those gold tiles put your target at exactly 6 tiles — max range. Click one to place Pesci, or place him anywhere to compare."
-        : `No tile on this board sits 6 away from that target, so the gold tiles are the furthest you can get: ${idealDist} tiles. Click one to place Pesci.`;
+        ? "Those gold tiles put your target at exactly 6 tiles — max range."
+        : `No tile on this board sits 6 away from that target, so the gold tiles are the furthest you can get: ${idealDist} tiles.`;
+    text = `${opening} Click one to place Pesci — he casts from the half opposite his mark. Clicking the target's own half re-marks instead, and clicking the hook starts over.`;
   }
 
   return (
@@ -614,15 +616,15 @@ function Legend({ mode }: { mode: Mode }) {
             label="Ideal cast positions"
           />
           <Swatch
-            color="rgba(251,113,133,0.25)"
-            border="#fb7185"
-            label="Steals the hook"
-          />
-          <Swatch
             color="rgba(251,191,36,0.15)"
             border="#fbbf24"
             dashed
             label="Ties with your target"
+          />
+          <Swatch
+            color="rgba(251,113,133,0.25)"
+            border="#fb7185"
+            label="Steals the hook"
           />
         </>
       )}
