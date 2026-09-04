@@ -56,6 +56,26 @@ npm run lint    # eslint
 
 It's a stock Next.js App Router project with no server-side dependencies, environment variables or external services — the whole page prerenders as static content. Import the repo on [Vercel](https://vercel.com/new) and deploy with the defaults.
 
+## Contributing
+
+This is open source and contributions are welcome — bug reports and feature ideas as much as code.
+
+- [Report a bug](https://github.com/ambroSnoopi/pescis-bizarre-fishing-sim/issues/new?labels=bug)
+- [Request a feature](https://github.com/ambroSnoopi/pescis-bizarre-fishing-sim/issues/new?labels=enhancement)
+
+For code changes: `main` is protected, so every change goes through a pull request — branch off `main`, push your branch, and open a PR. Before you do, make sure the checks pass:
+
+```bash
+npx tsc --noEmit   # types
+npm run lint       # eslint
+npm run build      # production build
+```
+
+Two things worth knowing before you touch the board:
+
+- The grid is not a rectangle and the middle ground is unplayable. `app/lib/hex.ts` is the single source of truth for which tiles exist (`BOARD`), which are playable (`isPlayable`), and how far apart they are.
+- What a click does is decided in one place, `actionFor()` in `app/lib/board.ts`. Both the click handler and the per-tile accessibility labels call it, so change the rule there rather than in the component and the two stay in agreement.
+
 ---
 
 Fan-made planning tool, not affiliated with the game or its publisher.
