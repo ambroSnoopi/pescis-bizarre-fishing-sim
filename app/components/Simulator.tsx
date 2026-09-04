@@ -670,10 +670,18 @@ function FooterLink({ href, children }: { href: string; children: string }) {
       href={href}
       target="_blank"
       rel="noopener noreferrer"
-      className="rounded-sm text-slate-300 underline decoration-slate-600 underline-offset-4 transition hover:text-amber-200 hover:decoration-amber-300/60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-300"
+      className="rounded-sm text-slate-300 no-underline decoration-amber-300/60 underline-offset-4 transition hover:text-amber-200 hover:underline focus-visible:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-300"
     >
       {children}
     </a>
+  );
+}
+
+function Dot() {
+  return (
+    <span aria-hidden="true" className="text-slate-700">
+      ·
+    </span>
   );
 }
 
@@ -707,10 +715,9 @@ function Footer() {
     <footer className="flex flex-col gap-2 border-t border-white/10 pt-4 text-xs text-slate-500">
       <p className="flex flex-wrap items-center gap-x-3 gap-y-1">
         <GitHubLink />
+        <Dot />
         <FooterLink href={BUG_URL}>Report a Bug</FooterLink>
-        <span aria-hidden="true" className="text-slate-700">
-          ·
-        </span>
+        <Dot />
         <FooterLink href={FEATURE_URL}>Request a Feature</FooterLink>
       </p>
       <p>
