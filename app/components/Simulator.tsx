@@ -33,6 +33,10 @@ export default function Simulator() {
   // Off by default: the reel-in is what happens *after* the cast lands, so it
   // is noise while you are still working out where to stand.
   const [showPull, setShowPull] = useState(false);
+  // Strips the explanatory chrome — scene blurb, tips, legend — for anyone who
+  // already knows the app and just wants the board. Nothing it hides carries a
+  // result, so the readout is untouched either way.
+  const [compact, setCompact] = useState(false);
 
   const board = scene.board;
 
@@ -106,18 +110,20 @@ export default function Simulator() {
 
       <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
         <div className="flex min-w-0 flex-1 flex-col gap-4">
-          <ScenePicker scene={scene} onPick={switchScene} />
+          <ScenePicker scene={scene} compact={compact} onPick={switchScene} />
           <ModeTabs mode={mode} onChange={switchMode} />
-          <Instructions
-            mode={mode}
-            awaitingTarget={awaitingTarget}
-            hasPesci={!!pesci}
-            idealDist={view.idealDist}
-            inRange={view.counts.inRange}
-            enemyCount={view.counts.enemies}
-            hooked={view.hooked}
-            hookedDist={view.hookedDist}
-          />
+          {!compact && (
+            <Instructions
+              mode={mode}
+              awaitingTarget={awaitingTarget}
+              hasPesci={!!pesci}
+              idealDist={view.idealDist}
+              inRange={view.counts.inRange}
+              enemyCount={view.counts.enemies}
+              hooked={view.hooked}
+              hookedDist={view.hookedDist}
+            />
+          )}
 
           <div className="overflow-x-auto rounded-2xl border border-white/10 bg-black/40 p-2 shadow-2xl shadow-black/60 sm:p-3">
             <Board
@@ -137,7 +143,7 @@ export default function Simulator() {
             />
           </div>
 
-          <Legend mode={mode} showNeutral={showNeutral} />
+          {!compact && <Legend mode={mode} showNeutral={showNeutral} />}
         </div>
 
         <aside className="flex w-full shrink-0 flex-col gap-4 lg:w-[22rem]">
@@ -148,6 +154,14 @@ export default function Simulator() {
                 hint="The tiles between the halves, where nobody deploys"
                 checked={showNeutral}
                 onChange={setShowNeutral}
+              />
+              {/* Sits above the mode-specific toggles so it keeps its place
+                  when they come and go. */}
+              <Toggle
+                label="Compact view"
+                hint="Hides the scene blurb, the tips and the legend"
+                checked={compact}
+                onChange={setCompact}
               />
               {mode === "target" && (
                 <>

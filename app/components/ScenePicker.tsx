@@ -11,12 +11,16 @@ import { SCENES, type Scene } from "../lib/maps";
  * board's width leaves no room for a second line, and the blurb has somewhere
  * better to be: under the strip, for the one that is selected. What each scene
  * means for the cast is in the Scene info panel.
+ *
+ * `compact` drops that blurb, leaving the strip alone.
  */
 export default function ScenePicker({
   scene,
+  compact,
   onPick,
 }: {
   scene: Scene;
+  compact: boolean;
   onPick: (scene: Scene) => void;
 }) {
   return (
@@ -36,9 +40,11 @@ export default function ScenePicker({
         ))}
       </div>
 
-      <p className="mt-3 border-t border-white/5 pt-3 text-xs text-slate-400">
-        <span className="text-slate-200">{scene.name}</span> — {scene.blurb}
-      </p>
+      {!compact && (
+        <p className="mt-3 border-t border-white/5 pt-3 text-xs text-slate-400">
+          <span className="text-slate-200">{scene.name}</span> — {scene.blurb}
+        </p>
+      )}
     </section>
   );
 }
