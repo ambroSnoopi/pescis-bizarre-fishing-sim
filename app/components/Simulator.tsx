@@ -204,6 +204,8 @@ export default function Simulator() {
             view={view}
           />
 
+          <SceneInfo scene={scene} />
+
           <SkillCard />
         </aside>
       </div>
@@ -391,6 +393,56 @@ function Toggle({
         <span className="block text-xs text-slate-500">{hint}</span>
       </span>
     </label>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Scene info                                                          */
+/* ------------------------------------------------------------------ */
+
+/**
+ * What the selected field means for the cast.
+ *
+ * The spread is the number to read here: it is what changes from scene to
+ * scene, and whether its top end clears `MAX_RANGE` decides whether the hook
+ * can ever come back empty.
+ */
+function SceneInfo({ scene }: { scene: Scene }) {
+  const { board } = scene;
+  const ally = board.tiles.filter((h) => zoneOf(board, h) === "ally").length;
+  const enemy = board.tiles.filter((h) => zoneOf(board, h) === "enemy").length;
+  const allInReach = board.span.max <= MAX_RANGE;
+
+  return (
+    <Panel title="Scene info">
+      <div className="flex flex-col">
+        <Row label="Field" value={`${board.cols} × ${board.rows} tiles`} />
+        <Row
+          label="Deploy tiles"
+          value={
+            <>
+              {ally} <span className="text-slate-500">v</span> {enemy}
+            </>
+          }
+        />
+        <Row
+          label="Opposing tiles"
+          value={`${board.span.min}–${board.span.max} apart`}
+        />
+      </div>
+
+      <div className="mt-3">
+        {allInReach ? (
+          <Note tone="good">
+            {`Every pair across this field is inside the hook's ${MAX_RANGE}, so the cast always catches somebody — the only question is who is furthest.`}
+          </Note>
+        ) : (
+          <Note tone="warn">
+            {`The halves are far enough apart that a body further out than ${MAX_RANGE} is past the hook entirely, so where Pesci stands decides who he can reach at all.`}
+          </Note>
+        )}
+      </div>
+    </Panel>
   );
 }
 

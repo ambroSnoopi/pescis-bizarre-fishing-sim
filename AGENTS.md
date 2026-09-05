@@ -38,11 +38,11 @@ Simulator.tsx  ──Board + Selection──▶  deriveBoard()  ──TileView[]
    └──────────── onPick / onHover ───────────────────────────────────────────┘
 ```
 
-- `app/components/Simulator.tsx` — every piece of React state, plus all the surrounding panels (readout, options, legend, footer).
+- `app/components/Simulator.tsx` — every piece of React state, plus all the surrounding panels (readout, scene info, options, legend, footer).
 - `app/lib/maps.ts` — the six PvP scenes as data: name, mini-map, and the two deploy zones each one is traced from.
 - `app/lib/board.ts` — turns a `Board` + `Selection` into one `TileView` per tile. No React.
 - `app/components/Board.tsx` — renders `TileView[]` as SVG. Holds no state; reports clicks and hovers upward.
-- `app/components/ScenePicker.tsx` — the mini-map strip that switches scene.
+- `app/components/ScenePicker.tsx` — the mini-map strip that switches scene. Cards carry the artwork and name only; what the field means for the cast is the `SceneInfo` panel's job.
 - `app/lib/hex.ts` — the `Board` type and all geometry. No React.
 - `app/components/tokens.tsx` — Pesci, the hook, and enemy markers.
 

@@ -2,16 +2,15 @@
 
 import Image from "next/image";
 
-import { MAX_RANGE, zoneOf } from "../lib/hex";
 import { SCENES, type Scene } from "../lib/maps";
 
 /**
  * The game's "Switch Scene" list, rebuilt as the app's board picker.
  *
- * The scenes are not interchangeable backdrops: their deploy zones sit
- * different distances apart, so the same cast is max range on one field and
- * out of reach on the next. The caption under the strip spells that out for
- * whichever one is selected.
+ * The cards carry the artwork and the name only — six of them across the
+ * board's width leaves no room for a second line, and the blurb has somewhere
+ * better to be: under the strip, for the one that is selected. What each scene
+ * means for the cast is in the Scene info panel.
  */
 export default function ScenePicker({
   scene,
@@ -20,10 +19,6 @@ export default function ScenePicker({
   scene: Scene;
   onPick: (scene: Scene) => void;
 }) {
-  const { board } = scene;
-  const ally = board.tiles.filter((h) => zoneOf(board, h) === "ally").length;
-  const enemy = board.tiles.filter((h) => zoneOf(board, h) === "enemy").length;
-
   return (
     <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-3 sm:p-4">
       <h2 className="mb-3 font-mono text-xs uppercase tracking-[0.2em] text-slate-400">
@@ -42,15 +37,7 @@ export default function ScenePicker({
       </div>
 
       <p className="mt-3 border-t border-white/5 pt-3 text-xs text-slate-400">
-        <span className="text-slate-200">{scene.name}</span> —{" "}
-        <span className="font-mono text-slate-500">
-          {board.cols}×{board.rows} field · {ally} v {enemy} deploy tiles ·
-          opposing tiles sit {board.span.min}–{board.span.max} apart
-        </span>
-        .{" "}
-        {board.span.max <= MAX_RANGE
-          ? `Every pair across the field is inside the hook's ${MAX_RANGE}, so the cast always catches somebody.`
-          : `Anything further out than ${MAX_RANGE} is past the hook entirely.`}
+        <span className="text-slate-200">{scene.name}</span> — {scene.blurb}
       </p>
     </section>
   );
@@ -89,16 +76,13 @@ function SceneCard({
         }`}
       />
 
-      <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/60 to-transparent px-1.5 pb-1 pt-4">
+      <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/60 to-transparent px-1.5 pb-1 pt-5">
         <span
-          className={`block text-[10px] font-semibold leading-tight ${
+          className={`block text-[11px] font-semibold leading-tight ${
             active ? "text-amber-200" : "text-slate-200"
           }`}
         >
           {scene.name}
-        </span>
-        <span className="block truncate text-[9px] leading-tight text-slate-500">
-          {scene.blurb}
         </span>
       </span>
     </button>
