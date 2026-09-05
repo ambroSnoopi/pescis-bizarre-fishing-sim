@@ -62,6 +62,14 @@ The board draws hand-made SVG stand-ins for Pesci's portrait and the Fisher Man 
 
 Pesci's marker is clipped to the hex, so a portrait crop works better than a full card — the image is scaled to cover the tile and anything outside the hexagon is trimmed.
 
+## Icons
+
+The app ships its own mark — a gold hook over a honeycomb, with Fisher Man's tentacles around it — as a favicon, an installable home-screen icon and a social preview card. Added to a phone's home screen it opens standalone, without browser chrome.
+
+Two hand-written SVGs are the masters: `app/icon.svg` is the simplified cut that stays readable at 16px, and `public/icons/mark.svg` is the detailed one. Everything else (`app/favicon.ico`, `app/apple-icon.png`, the `public/icons/icon-*.png` set and `app/opengraph-image.png`) is rasterised from those two and checked in.
+
+`metadataBase` in `app/layout.tsx` pins the canonical host that social previews resolve against — change it there if the site moves.
+
 ## Running it
 
 ```bash
