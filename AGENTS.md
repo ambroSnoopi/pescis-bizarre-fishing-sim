@@ -96,6 +96,28 @@ The viewBox comes from `boardWidth`/`boardHeight`, so a nine-column scene draws 
 
 `PesciToken` and `HookToken` prefer real art at `public/pesci-card.png` and `public/pesci-hook.png`, probing for it at runtime via `useCustomAsset` and falling back to inline hand-drawn SVG. Pesci's marker is clipped to a hexagon sized to the tile, so custom art is cropped to that shape — a portrait crop suits it better than a full card.
 
+### App icons and the social card
+
+The mark is a gold hook over a honeycomb with Fisher Man's tentacles around it, and it exists as two vector masters that everything else is rasterised from:
+
+| Master | Used for |
+| --- | --- |
+| `app/icon.svg` | the simplified cut — big hook, two tentacles, two hexes. Shipped as-is for `rel="icon"`, and rasterised into `app/favicon.ico` at 16/32/48 |
+| `public/icons/mark.svg` | the full cut — suckers, bubbles, seven hexes, glow. Source of every PNG below |
+
+| Raster | Size | Notes |
+| --- | --- | --- |
+| `app/apple-icon.png` | 180 | full bleed, **not** rounded — iOS punches its own squircle, and a pre-rounded icon gets a second radius cut out of it |
+| `public/icons/icon-192.png`, `icon-512.png` | 192, 512 | manifest `purpose: "any"`, squircle with transparent corners |
+| `public/icons/icon-maskable-512.png` | 512 | manifest `purpose: "maskable"`, full bleed. The hook sits inside the 80% safe circle; only the corner tentacles are ever masked away |
+| `app/opengraph-image.png` | 1200×630 | the mark plus the title in Geist, over the honeycomb |
+
+Nothing here is generated at build time — these are checked-in assets, the same as `public/maps/*.webp`. Redrawing means editing a master and re-rasterising every PNG that comes off it (`app/favicon.ico` is a plain PNG-in-ICO container holding the three small renders). The two icon masters are hand-written SVG, not exports, so they diff readably.
+
+The metadata that wires them up lives in `app/layout.tsx` and `app/manifest.ts`. Next's file conventions find `favicon.ico`, `icon.svg`, `apple-icon.png` and `opengraph-image.png` on their own — there are no `<link>` tags to write, and adding one would duplicate the generated tag. `opengraph-image.alt.txt` supplies `og:image:alt`, and `twitter:image` is derived from the same file, so there is deliberately no separate `twitter-image.png`.
+
+**`metadataBase` is pinned to the live host** in `layout.tsx`. Unset, Next resolves social image URLs against the per-deployment Vercel URL, which changes on every preview build and gives scrapers a link that will rot.
+
 ## Styling
 
 Tailwind v4, configured in `app/globals.css` via `@theme` — there is no `tailwind.config`. Custom animations (`animate-range-pulse`, `animate-reel`) live there, as does the `prefers-reduced-motion` opt-out.
