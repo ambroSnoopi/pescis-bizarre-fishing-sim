@@ -6,10 +6,12 @@ import Board from "./Board";
 import { Mode, actionFor, deriveBoard } from "../lib/board";
 import {
   Hex,
+  MAX_ENEMIES,
   MAX_RANGE,
   PULL_TILES,
   hexDistance,
   hexName,
+  oppositeHalves,
   sameHex,
   zoneOf,
 } from "../lib/hex";
@@ -18,13 +20,16 @@ export default function Simulator() {
   const [mode, setMode] = useState<Mode>("place");
   const [pesci, setPesci] = useState<Hex | null>(null);
   const [target, setTarget] = useState<Hex | null>(null);
+  const [enemies, setEnemies] = useState<Hex[]>([]);
   const [hovered, setHovered] = useState<Hex | null>(null);
   const [showThreats, setShowThreats] = useState(true);
-  const [showPull, setShowPull] = useState(true);
+  // Off by default: the reel-in is what happens *after* the cast lands, so it
+  // is noise while you are still working out where to stand.
+  const [showPull, setShowPull] = useState(false);
 
   const view = useMemo(
-    () => deriveBoard({ mode, pesci, target }),
-    [mode, pesci, target],
+    () => deriveBoard({ mode, pesci, target, enemies }),
+    [mode, pesci, target, enemies],
   );
 
   const awaitingTarget = mode === "target" && !target;
@@ -33,11 +38,12 @@ export default function Simulator() {
     if (next === mode) return;
     setMode(next);
     setTarget(null);
+    setEnemies([]);
     if (next === "target") setPesci(null);
   }
 
   function handlePick(hex: Hex) {
-    switch (actionFor(hex, { mode, pesci, target })) {
+    switch (actionFor(hex, { mode, pesci, target, enemies })) {
       case "set-target":
         // Re-marking keeps Pesci: he's on the far half either way, so his
         // position is still legal and you get the new distance immediately.
@@ -45,9 +51,22 @@ export default function Simulator() {
         return;
       case "place-pesci":
         setPesci(hex);
+        // Moving him keeps the line-up — it's on the other half either way —
+        // but anyone who ends up sharing his half is off the board.
+        setEnemies((prev) => prev.filter((e) => oppositeHalves(hex, e)));
         return;
       case "lift-pesci":
+        // Without Pesci there is no "other half", so the line-up goes too.
         setPesci(null);
+        setEnemies([]);
+        return;
+      case "add-enemy":
+        setEnemies((prev) =>
+          prev.length >= MAX_ENEMIES ? prev : [...prev, hex],
+        );
+        return;
+      case "remove-enemy":
+        setEnemies((prev) => prev.filter((e) => !sameHex(e, hex)));
         return;
       case "reset":
         reset();
@@ -60,6 +79,7 @@ export default function Simulator() {
   function reset() {
     setPesci(null);
     setTarget(null);
+    setEnemies([]);
   }
 
   return (
@@ -74,6 +94,9 @@ export default function Simulator() {
             awaitingTarget={awaitingTarget}
             hasPesci={!!pesci}
             idealDist={view.idealDist}
+            enemyCount={view.counts.enemies}
+            hooked={view.hooked}
+            hookedDist={view.hookedDist}
           />
 
           <div className="rounded-2xl border border-white/10 bg-black/40 p-2 shadow-2xl shadow-black/60 sm:p-3">
@@ -122,6 +145,15 @@ export default function Simulator() {
                 >
                   Clear board
                 </button>
+                {mode === "place" && enemies.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setEnemies([])}
+                    className="flex-1 rounded-lg border border-rose-400/40 bg-rose-500/10 px-3 py-2 text-sm font-medium text-rose-200 transition hover:bg-rose-500/20"
+                  >
+                    Clear enemies
+                  </button>
+                )}
                 {mode === "target" && target && (
                   <button
                     type="button"
@@ -222,17 +254,35 @@ function Instructions({
   awaitingTarget,
   hasPesci,
   idealDist,
+  enemyCount,
+  hooked,
+  hookedDist,
 }: {
   mode: Mode;
   awaitingTarget: boolean;
   hasPesci: boolean;
   idealDist: number;
+  enemyCount: number;
+  hooked: Hex[];
+  hookedDist: number | null;
 }) {
   let text: string;
   if (mode === "place") {
-    text = hasPesci
-      ? "Click another tile to move Pesci, or click his tile again to pick him up. Only the far half is shaded — that's where enemies stand. Gold tiles are exactly 6 away."
-      : "Click any tile outside the middle ground to drop Pesci there. Every tile within 6 on the opposite half lights up, with the max-range ring in gold.";
+    const room = MAX_ENEMIES - enemyCount;
+    if (!hasPesci) {
+      text =
+        "Click any tile outside the middle ground to drop Pesci there. Every tile within 6 on the opposite half lights up, with the max-range ring in gold.";
+    } else if (enemyCount === 0) {
+      text = `Pesci is cast. Now click up to ${MAX_ENEMIES} shaded tiles on the far half to stand enemies there — whoever the hook would grab gets it glowing over their head. Click a tile on Pesci's own half to move him, or his tile again to pick him up.`;
+    } else if (hooked.length === 0) {
+      text = `Not one of those ${enemyCount} is within ${MAX_RANGE} tiles, so the cast comes back empty. Move Pesci closer, or click an enemy to take them off the board.`;
+    } else if (hooked.length > 1) {
+      text = `${hooked.length} enemies tie at ${hookedDist} tiles — all of them are glowing because the hook picks between them at random. Move Pesci to break the tie.`;
+    } else {
+      text = `The hook takes ${hexName(hooked[0])}: the furthest body in range, at ${hookedDist} tiles. Click an enemy to remove them${
+        room > 0 ? `, or stand up to ${room} more` : ""
+      }.`;
+    }
   } else if (awaitingTarget) {
     text =
       "Click the enemy you want on the hook. The gold tiles that appear are every spot that puts them as far away as the hook can reach.";
@@ -326,7 +376,9 @@ function Readout({
   hovered: Hex | null;
   view: ReturnType<typeof deriveBoard>;
 }) {
-  const { counts, targetDist, targetInRange, landing } = view;
+  const { counts, targetDist, targetInRange, landing, hooked, hookedDist } =
+    view;
+  const showLineup = mode === "place" && !!pesci;
 
   return (
     <Panel title="Cast report">
@@ -374,6 +426,34 @@ function Readout({
               value={<span className="text-amber-300">{counts.maxRange}</span>}
             />
           </>
+        )}
+
+        {showLineup && (
+          <Row
+            label="Enemies placed"
+            value={
+              <>
+                {counts.enemies}
+                <span className="text-slate-500"> / {MAX_ENEMIES}</span>
+              </>
+            }
+          />
+        )}
+
+        {showLineup && counts.enemies > 0 && (
+          <Row
+            label="Hook takes"
+            value={
+              hooked.length === 0 ? (
+                <span className="text-rose-300">nobody in range</span>
+              ) : (
+                <span className="text-amber-300">
+                  {hooked.map(hexName).join(hooked.length > 2 ? ", " : " or ")}
+                  <span className="text-slate-500"> · {hookedDist} tiles</span>
+                </span>
+              )
+            }
+          />
         )}
 
         {mode === "target" && target && !pesci && (
@@ -426,6 +506,48 @@ function Readout({
           Nothing on this board is a full {MAX_RANGE} tiles from{" "}
           {hexName(target)} — {view.idealDist} is as far as you can back off.
         </p>
+      )}
+
+      {showLineup && counts.enemies > 0 && (
+        <div className="mt-3 flex flex-col gap-2">
+          {hooked.length === 1 && (
+            <Badge tone="good">
+              Hook locked on {hexName(hooked[0])} at {hookedDist} tiles
+            </Badge>
+          )}
+          {hooked.length > 1 && (
+            <Badge tone="warn">
+              {hooked.length}-way tie at {hookedDist} tiles — the hook picks one
+              at random
+            </Badge>
+          )}
+          {hooked.length === 0 && (
+            <Badge tone="bad">
+              Nobody within {MAX_RANGE} tiles — the cast catches nothing
+            </Badge>
+          )}
+          {counts.enemies > counts.enemiesInRange && hooked.length > 0 && (
+            <Note tone="info">
+              {counts.enemies - counts.enemiesInRange} of them stand further
+              than {MAX_RANGE} tiles out, so the hook can&apos;t reach them at
+              all.
+            </Note>
+          )}
+          {hooked.length === 1 && hookedDist === MAX_RANGE && (
+            <Note tone="good">
+              At max range nothing in reach can sit further out, so this pick
+              can&apos;t be stolen.
+            </Note>
+          )}
+          {hooked.length === 1 && hookedDist !== null && hookedDist < MAX_RANGE && (
+            <Note tone="warn">
+              {MAX_RANGE - hookedDist} tile
+              {MAX_RANGE - hookedDist === 1 ? "" : "s"} of reach to spare — a
+              body anywhere further out than {hexName(hooked[0])} would take the
+              hook instead.
+            </Note>
+          )}
+        </div>
       )}
 
       {targetDist !== null && (
@@ -602,6 +724,20 @@ function Legend({ mode }: { mode: Mode }) {
         border="#facc15"
         label="Max range (exactly 6)"
       />
+      {mode === "place" && (
+        <>
+          <Swatch
+            color="rgba(251,113,133,0.14)"
+            border="#fb7185"
+            label="Enemy standing here"
+          />
+          <Swatch
+            color="rgba(250,204,21,0.20)"
+            border="#facc15"
+            label="Takes the hook"
+          />
+        </>
+      )}
       {mode === "target" && (
         <>
           <Swatch

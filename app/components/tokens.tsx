@@ -176,10 +176,20 @@ export function PesciToken({
 }
 
 /* ------------------------------------------------------------------ */
-/* Fisher Man ultimate icon — marks the selected target                */
+/* Fisher Man's hook — marks the target and whoever it would grab      */
 /* ------------------------------------------------------------------ */
 
-export function HookToken({ cx, cy, height }: TokenProps) {
+/**
+ * Plain line-art on a flat disc, on purpose: the hook is drawn small, up to
+ * six at a time, and always on top of a tile that already carries a range
+ * ring and a distance label. A busy badge turns into mush at that size.
+ */
+export function HookToken({
+  cx,
+  cy,
+  height,
+  color = "#fcd34d",
+}: TokenProps & { color?: string }) {
   const custom = useCustomAsset(HOOK_ICON_SRC);
   const x = cx - height / 2;
   const y = cy - height / 2;
@@ -208,54 +218,61 @@ export function HookToken({ cx, cy, height }: TokenProps) {
       className="pointer-events-none"
       aria-hidden="true"
     >
-      <defs>
-        <linearGradient id="hookField" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stopColor="#a8818a" />
-          <stop offset="50%" stopColor="#7d5c66" />
-          <stop offset="100%" stopColor="#4a3540" />
-        </linearGradient>
-        <clipPath id="hookClip">
-          <circle cx="50" cy="50" r="40" />
-        </clipPath>
-      </defs>
-
-      <circle cx="50" cy="50" r="47" fill="#171327" />
-      <circle
-        cx="50"
-        cy="50"
-        r="43"
-        fill="none"
-        stroke="#3b3355"
-        strokeWidth="2"
-      />
-      <circle cx="50" cy="50" r="40" fill="url(#hookField)" />
-
-      <g clipPath="url(#hookClip)" opacity="0.85">
-        <path d="M-10 34 L58 -14 L74 -14 L2 46 Z" fill="#2a2033" opacity="0.6" />
-        <path d="M6 78 L88 12 L96 22 L14 92 Z" fill="#f0d089" opacity="0.85" />
-        <path d="M22 96 L98 36 L100 48 L34 100 Z" fill="#c9a659" opacity="0.6" />
-        <path d="M-4 58 L60 6 L66 12 L2 66 Z" fill="#fbeec2" opacity="0.35" />
-      </g>
-
+      {/* Just enough backdrop to keep the line readable on any tile. */}
+      <circle cx="50" cy="50" r="46" fill="#080b10" opacity="0.55" />
       <g
         fill="none"
-        stroke="#f6d98a"
-        strokeWidth="5.5"
+        stroke={color}
         strokeLinecap="round"
         strokeLinejoin="round"
       >
-        <path d="M63 28 L63 56" />
-        <path d="M63 56 Q63 74 47 72 Q34 70 36 58 Q37 50 46 50" />
-        <path d="M63 24 L58 20" />
+        {/* Eyelet, shank, bend, point. */}
+        <circle cx="57" cy="21" r="8" strokeWidth="5" />
+        <g strokeWidth="7">
+          <path d="M57 29 L57 52" />
+          <path d="M57 52 Q57 76 43 76 Q29 76 29 61 Q29 51 39 49" />
+          <path d="M39 49 L35 37" />
+        </g>
       </g>
-      <path
-        d="M46 50 L41 44 L50 44 Z"
-        fill="#f6d98a"
-        stroke="#f6d98a"
-        strokeWidth="1"
-        strokeLinejoin="round"
+    </svg>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Enemy standee — a body the hook could pick                          */
+/* ------------------------------------------------------------------ */
+
+export function EnemyToken({
+  cx,
+  cy,
+  height,
+  color = "#fb7185",
+}: TokenProps & { color?: string }) {
+  const x = cx - height / 2;
+  const y = cy - height / 2;
+
+  return (
+    <svg
+      x={x}
+      y={y}
+      width={height}
+      height={height}
+      viewBox="0 0 100 100"
+      className="pointer-events-none"
+      aria-hidden="true"
+    >
+      <circle cx="50" cy="50" r="46" fill="#0b0d13" opacity="0.75" />
+      <circle
+        cx="50"
+        cy="50"
+        r="44"
+        fill="none"
+        stroke={color}
+        strokeWidth="4"
+        opacity="0.75"
       />
-      <circle cx="50" cy="50" r="40" fill="none" stroke="#20182f" strokeWidth="3" />
+      <circle cx="50" cy="37" r="14" fill={color} />
+      <path d="M20 84 Q24 57 50 57 Q76 57 80 84 Z" fill={color} />
     </svg>
   );
 }

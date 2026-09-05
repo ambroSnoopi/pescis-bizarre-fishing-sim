@@ -24,6 +24,8 @@ export const ROWS = 5;
 export const MAX_RANGE = 6;
 /** "…pulls the target toward him by 1 tile 1 time per second… lasts for 3 seconds" */
 export const PULL_TILES = 3;
+/** A team fields at most five units, so that's the whole enemy line-up. */
+export const MAX_ENEMIES = 5;
 
 const SQRT3 = Math.sqrt(3);
 
