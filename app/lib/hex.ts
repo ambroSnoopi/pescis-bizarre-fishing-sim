@@ -17,9 +17,6 @@
 export type Hex = { col: number; row: number };
 export type Zone = "ally" | "neutral" | "enemy";
 
-export const COLS = 7;
-export const ROWS = 5;
-
 /** "…the furthest enemy within 6 tiles" */
 export const MAX_RANGE = 6;
 /** "…pulls the target toward him by 1 tile 1 time per second… lasts for 3 seconds" */
@@ -114,11 +111,6 @@ export function hexDistance(a: Hex, b: Hex): number {
   const dq = pa.q - pb.q;
   const dr = pa.r - pb.r;
   return (Math.abs(dq) + Math.abs(dq + dr) + Math.abs(dr)) / 2;
-}
-
-/** Every tile on the board at exactly `d` tiles from `from`. */
-export function tilesAtDistance(from: Hex, d: number): Hex[] {
-  return BOARD.filter((h) => hexDistance(from, h) === d);
 }
 
 /* ------------------------------------------------------------------ */
