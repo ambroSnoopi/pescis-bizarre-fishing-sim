@@ -1,14 +1,15 @@
 "use client";
 
-import { TileView } from "../lib/board";
+import { type TileView } from "../lib/board";
 import {
-  BOARD_H,
-  BOARD_W,
+  type Board as BoardShape,
   HEX_H,
   HEX_W,
-  Hex,
+  type Hex,
   MAX_RANGE,
   PAD,
+  boardHeight,
+  boardWidth,
   hexName,
   hexPoints,
   hexToPixel,
@@ -18,13 +19,11 @@ import { EnemyToken, HookToken, PesciToken } from "./tokens";
 
 const ZONE_FILL: Record<TileView["zone"], string> = {
   ally: "#101d24",
-  neutral: "#15151f",
   enemy: "#231019",
 };
 
 const ZONE_STROKE: Record<TileView["zone"], string> = {
   ally: "rgba(125, 211, 252, 0.22)",
-  neutral: "rgba(226, 214, 168, 0.20)",
   enemy: "rgba(248, 113, 113, 0.38)",
 };
 
@@ -92,6 +91,7 @@ function ringFill(dist: number): string {
 }
 
 export type BoardProps = {
+  board: BoardShape;
   tiles: TileView[];
   pull: Hex[];
   landing: Hex | null;
@@ -106,6 +106,7 @@ export type BoardProps = {
 };
 
 export default function Board({
+  board,
   tiles,
   pull,
   landing,
@@ -118,6 +119,8 @@ export default function Board({
   onPick,
   onHover,
 }: BoardProps) {
+  const width = boardWidth(board);
+  const height = boardHeight(board);
   const pullLine = pull
     .map((h) => {
       const { x, y } = hexToPixel(h);
@@ -127,10 +130,14 @@ export default function Board({
 
   return (
     <svg
-      viewBox={`0 0 ${BOARD_W} ${BOARD_H}`}
+      viewBox={`0 0 ${width} ${height}`}
+      // Fields run from six columns wide to nine. Left to shrink to fit, the
+      // widest ones squeeze the distance labels down to a few pixels on a
+      // phone, so hold a floor per column and let the panel scroll instead.
+      style={{ minWidth: `${Math.round((board.cols + 0.5) * 48)}px` }}
       className="w-full select-none"
       role="group"
-      aria-label="Battlefield, 29 tile hex grid"
+      aria-label={`Battlefield, ${tiles.length} deploy tiles on a ${board.cols} by ${board.rows} hex field`}
     >
       <defs>
         <radialGradient id="fieldBg" cx="50%" cy="45%" r="75%">
@@ -192,7 +199,7 @@ export default function Board({
         </filter>
       </defs>
 
-      <rect width={BOARD_W} height={BOARD_H} fill="url(#fieldBg)" rx="14" />
+      <rect width={width} height={height} fill="url(#fieldBg)" rx="14" />
 
       {/* Zone captions */}
       <g className="font-mono" fontSize="13" letterSpacing="3">
@@ -200,21 +207,12 @@ export default function Board({
           ALLY SIDE
         </text>
         <text
-          x={BOARD_W - PAD}
+          x={width - PAD}
           y={PAD - 16}
           textAnchor="end"
           fill="rgba(248, 113, 113, 0.6)"
         >
           ENEMY SIDE
-        </text>
-        <text
-          x={hexToPixel({ col: 3, row: 0 }).x}
-          y={BOARD_H - PAD + 26}
-          textAnchor="middle"
-          fontSize="11"
-          fill="rgba(226, 214, 168, 0.45)"
-        >
-          NEUTRAL
         </text>
       </g>
 
@@ -227,7 +225,6 @@ export default function Board({
             fill={ZONE_FILL[t.zone]}
             stroke={ZONE_STROKE[t.zone]}
             strokeWidth={1.5}
-            strokeDasharray={t.zone === "neutral" ? "5 4" : undefined}
           />
         ))}
       </g>
@@ -428,8 +425,11 @@ export default function Board({
           if (t.isPesci || t.isTarget || t.enemy !== "none") return null;
 
           // Distances are only worth reading where an enemy could stand, so
-          // everything else keeps its name and the board stays legible.
-          if (!t.highlight) {
+          // everything else keeps its name and the board stays legible. The
+          // far half keeps its number even out of range: on these fields a
+          // good part of it is past the hook, and "7" says that better than
+          // an unshaded tile does.
+          if (!t.farHalf) {
             return (
               <text
                 key={`name-${t.hex.col}-${t.hex.row}`}
@@ -437,11 +437,7 @@ export default function Board({
                 y={y + 5}
                 textAnchor="middle"
                 fontSize="13"
-                fill={
-                  t.dist === null || t.inRange
-                    ? "rgba(148, 163, 184, 0.45)"
-                    : "rgba(148, 163, 184, 0.25)"
-                }
+                fill="rgba(148, 163, 184, 0.45)"
               >
                 {hexName(t.hex)}
               </text>
@@ -456,7 +452,13 @@ export default function Board({
               textAnchor="middle"
               fontSize={t.isMax ? 18 : 14}
               fontWeight={t.isMax ? 700 : 400}
-              fill={t.isMax ? "#fde047" : "rgba(203, 213, 225, 0.6)"}
+              fill={
+                t.isMax
+                  ? "#fde047"
+                  : t.inRange
+                    ? "rgba(203, 213, 225, 0.6)"
+                    : "rgba(148, 163, 184, 0.3)"
+              }
             >
               {t.dist}
             </text>
@@ -491,12 +493,9 @@ export default function Board({
         {tiles.map((t) => {
           const isHovered = sameHex(hovered, t.hex);
           const playable = t.action !== "none";
-          // A playable tile with nothing to do is the enemy line-up being
-          // full — the middle ground is the only other dead tile.
-          const blocked =
-            t.zone === "neutral"
-              ? "neutral middle, nobody stands here"
-              : "enemy line-up is full, remove one first";
+          // Every tile on the board is a deploy tile, so the only reason one
+          // goes dead is the enemy line-up being full.
+          const blocked = "enemy line-up is full, remove one first";
           const label = [
             hexName(t.hex),
             playable ? `${t.zone} side` : blocked,

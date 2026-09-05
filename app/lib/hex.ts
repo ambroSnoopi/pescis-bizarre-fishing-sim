@@ -5,17 +5,16 @@
  * hex to the right, which is why the two halves stay level with each other and
  * the line between them zig-zags.
  *
- *   col 0..6 (left to right), row 0..4 (top to bottom)
+ *   col 0..cols-1 (left to right), row 0..rows-1 (top to bottom)
  *
- * The grid is not a full 7x5 rectangle — the corners are cut, leaving 29 tiles
- * (see `BOARD`). Column A is the ally back line, column D and the C2/C4 notches
- * are the neutral middle ground, and columns E-G are the enemy half. Offset
- * coordinates are what the UI talks in (A2 … G3); distance math converts to
- * axial/cube first.
+ * Every PvP scene has its own board, so nothing here assumes a shape: the
+ * functions take a `Board`, built in `lib/maps.ts` from that scene's deploy
+ * zones. Offset coordinates are what the UI talks in (A2 … G3); distance math
+ * converts to axial/cube first.
  */
 
 export type Hex = { col: number; row: number };
-export type Zone = "ally" | "neutral" | "enemy";
+export type Zone = "ally" | "enemy";
 
 /** "…the furthest enemy within 6 tiles" */
 export const MAX_RANGE = 6;
@@ -30,18 +29,24 @@ const SQRT3 = Math.sqrt(3);
 /* Board                                                               */
 /* ------------------------------------------------------------------ */
 
-export const BOARD: Hex[] = [
-  // Row 0 (display "1"): B1, C1, D1, E1, F1
-  { col: 1, row: 0 }, { col: 2, row: 0 }, { col: 3, row: 0 }, { col: 4, row: 0 }, { col: 5, row: 0 },
-  // Row 1 (display "2"): A2, B2, C2, D2, E2, F2 (no G2)
-  { col: 0, row: 1 }, { col: 1, row: 1 }, { col: 2, row: 1 }, { col: 3, row: 1 }, { col: 4, row: 1 }, { col: 5, row: 1 },
-  // Row 2 (display "3"): A3, B3, C3, D3, E3, F3, G3
-  { col: 0, row: 2 }, { col: 1, row: 2 }, { col: 2, row: 2 }, { col: 3, row: 2 }, { col: 4, row: 2 }, { col: 5, row: 2 }, { col: 6, row: 2 },
-  // Row 3 (display "4"): A4, B4, C4, D4, E4, F4 (no G4)
-  { col: 0, row: 3 }, { col: 1, row: 3 }, { col: 2, row: 3 }, { col: 3, row: 3 }, { col: 4, row: 3 }, { col: 5, row: 3 },
-  // Row 4 (display "5"): B5, C5, D5, E5, F5 (no A5)
-  { col: 1, row: 4 }, { col: 2, row: 4 }, { col: 3, row: 4 }, { col: 4, row: 4 }, { col: 5, row: 4 },
-];
+/**
+ * One scene's battlefield.
+ *
+ * `tiles` holds the deploy tiles only — the hexes the game actually draws. The
+ * rest of the `cols × rows` field is open ground: nothing is drawn there and
+ * nobody stands there, but the hook drags its catch straight across it, so
+ * `neighbors` walks the lattice rather than the tile list.
+ */
+export type Board = {
+  cols: number;
+  rows: number;
+  /** Every deploy tile, in reading order. */
+  tiles: readonly Hex[];
+  /** `key(hex)` → the half it belongs to. Missing means open ground. */
+  zones: ReadonlyMap<string, Zone>;
+  /** How far apart two opposing tiles can sit — the closest and furthest. */
+  span: { min: number; max: number };
+};
 
 export function key(h: Hex): string {
   return `${h.col},${h.row}`;
@@ -51,34 +56,75 @@ export function sameHex(a: Hex | null, b: Hex | null): boolean {
   return !!a && !!b && a.col === b.col && a.row === b.row;
 }
 
-const BOARD_KEYS = new Set(BOARD.map((h) => `${h.col},${h.row}`));
-
-/** The corners are cut, so this is membership in `BOARD`, not a bounds check. */
-export function onBoard(h: Hex): boolean {
-  return BOARD_KEYS.has(`${h.col},${h.row}`);
-}
-
-export function zoneOf(h: Hex): Zone {
-  if (h.col === 3) return "neutral";
-  if (h.col === 2 && (h.row === 1 || h.row === 3)) return "neutral";
-  if (h.col < 3) return "ally";
-  return "enemy";
-}
-
 /**
- * The middle ground is no-man's land: nobody deploys there, so it can hold
- * neither Pesci nor a mark. It still counts for distance — the hook flies over
- * it like any other tile.
+ * Assemble a board from its two deploy zones, each written as one array of
+ * column indices per row — the shape a scene gets read off a screenshot in.
  */
-export function isPlayable(h: Hex): boolean {
-  return zoneOf(h) !== "neutral";
+export function makeBoard(
+  ally: readonly (readonly number[])[],
+  enemy: readonly (readonly number[])[],
+): Board {
+  const zones = new Map<string, Zone>();
+  const allyTiles: Hex[] = [];
+  const enemyTiles: Hex[] = [];
+
+  for (const [zone, deploy, into] of [
+    ["ally", ally, allyTiles],
+    ["enemy", enemy, enemyTiles],
+  ] as const) {
+    deploy.forEach((cols, row) => {
+      for (const col of cols) {
+        into.push({ col, row });
+        zones.set(key({ col, row }), zone);
+      }
+    });
+  }
+
+  const tiles = [...allyTiles, ...enemyTiles].sort(
+    (a, b) => a.row - b.row || a.col - b.col,
+  );
+
+  // The field is at least as big as its tiles; that is all a screenshot tells
+  // us, and it is enough — the reel-in only ever drags a target *towards*
+  // Pesci, so it can never leave the box the two of them sit in.
+  const cols = tiles.reduce((w, h) => Math.max(w, h.col + 1), 0);
+  const rows = Math.max(ally.length, enemy.length);
+
+  const across = allyTiles.flatMap((a) =>
+    enemyTiles.map((e) => hexDistance(a, e)),
+  );
+
+  return {
+    cols,
+    rows,
+    tiles,
+    zones,
+    span: { min: Math.min(...across), max: Math.max(...across) },
+  };
+}
+
+/** The half `h` deploys on, or null when it is open ground. */
+export function zoneOf(board: Board, h: Hex): Zone | null {
+  return board.zones.get(key(h)) ?? null;
+}
+
+/** A tile somebody can stand on. Open ground inside the field is not one. */
+export function onBoard(board: Board, h: Hex): boolean {
+  return board.zones.has(key(h));
+}
+
+/** Inside the field — a deploy tile or the open ground between the halves. */
+export function onField(board: Board, h: Hex): boolean {
+  return (
+    h.col >= 0 && h.col < board.cols && h.row >= 0 && h.row < board.rows
+  );
 }
 
 /** True when two tiles sit on opposite halves of the field. */
-export function oppositeHalves(a: Hex, b: Hex): boolean {
-  const za = zoneOf(a);
-  const zb = zoneOf(b);
-  return za !== "neutral" && zb !== "neutral" && za !== zb;
+export function oppositeHalves(board: Board, a: Hex, b: Hex): boolean {
+  const za = zoneOf(board, a);
+  const zb = zoneOf(board, b);
+  return za !== null && zb !== null && za !== zb;
 }
 
 /** Human readable tile name, e.g. `C4` — column letter + 1-based row. */
@@ -126,22 +172,27 @@ const AXIAL_DIRS: ReadonlyArray<readonly [number, number]> = [
   [0, 1],
 ];
 
-/** The (up to six) adjacent tiles that are still on the board. */
-export function neighbors(h: Hex): Hex[] {
+/**
+ * The (up to six) adjacent hexes still on the field.
+ *
+ * Deliberately the *field*, not the tile list: the two deploy zones usually
+ * have open ground between them, and a target being reeled in crosses it.
+ */
+export function neighbors(board: Board, h: Hex): Hex[] {
   const a = toAxial(h);
   return AXIAL_DIRS.map(([dq, dr]) =>
     fromAxial({ q: a.q + dq, r: a.r + dr }),
-  ).filter(onBoard);
+  ).filter((n) => onField(board, n));
 }
 
 /**
  * Where the target ends up after being reeled in.
  *
- * The hook drags the target one tile per second for three seconds. It only
- * ever moves along real tiles, and it can't end up on top of Pesci, so the
- * pull stops as soon as the target is next to him.
+ * The hook drags the target one tile per second for three seconds. It can't
+ * end up on top of Pesci, so the pull stops as soon as the target is next to
+ * him.
  */
-export function pullPath(target: Hex, pesci: Hex): Hex[] {
+export function pullPath(board: Board, target: Hex, pesci: Hex): Hex[] {
   const path: Hex[] = [target];
   let current = target;
 
@@ -149,7 +200,7 @@ export function pullPath(target: Hex, pesci: Hex): Hex[] {
     if (hexDistance(current, pesci) <= 1) break;
 
     const from = hexToPixel(pesci);
-    const next = neighbors(current)
+    const next = neighbors(board, current)
       .filter((h) => hexDistance(h, pesci) < hexDistance(current, pesci))
       .sort((a, b) => {
         // Prefer the neighbour that is physically closest to Pesci, so the
@@ -189,8 +240,13 @@ export const HEX_H = 2 * HEX_SIZE * Y_SQUASH;
 const ROW_STEP = 1.5 * HEX_SIZE * Y_SQUASH;
 
 // The extra half column of width is the odd rows' offset.
-export const BOARD_W = 2 * PAD + 7.5 * HEX_W;
-export const BOARD_H = 2 * PAD + 8 * HEX_SIZE * Y_SQUASH;
+export function boardWidth(board: Board): number {
+  return 2 * PAD + (board.cols + 0.5) * HEX_W;
+}
+
+export function boardHeight(board: Board): number {
+  return 2 * PAD + (1.5 * board.rows + 0.5) * HEX_SIZE * Y_SQUASH;
+}
 
 export function hexToPixel(h: Hex): { x: number; y: number } {
   return {

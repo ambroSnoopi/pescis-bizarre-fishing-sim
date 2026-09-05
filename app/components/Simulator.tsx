@@ -3,9 +3,11 @@
 import { useMemo, useState } from "react";
 
 import Board from "./Board";
-import { Mode, actionFor, deriveBoard } from "../lib/board";
+import ScenePicker from "./ScenePicker";
+import { type Mode, actionFor, deriveBoard } from "../lib/board";
 import {
-  Hex,
+  type Board as BoardShape,
+  type Hex,
   MAX_ENEMIES,
   MAX_RANGE,
   PULL_TILES,
@@ -15,8 +17,10 @@ import {
   sameHex,
   zoneOf,
 } from "../lib/hex";
+import { type ChartedScene, DEFAULT_SCENE } from "../lib/maps";
 
 export default function Simulator() {
+  const [scene, setScene] = useState<ChartedScene>(DEFAULT_SCENE);
   const [mode, setMode] = useState<Mode>("place");
   const [pesci, setPesci] = useState<Hex | null>(null);
   const [target, setTarget] = useState<Hex | null>(null);
@@ -27,12 +31,23 @@ export default function Simulator() {
   // is noise while you are still working out where to stand.
   const [showPull, setShowPull] = useState(false);
 
+  const board = scene.board;
+
   const view = useMemo(
-    () => deriveBoard({ mode, pesci, target, enemies }),
-    [mode, pesci, target, enemies],
+    () => deriveBoard(board, { mode, pesci, target, enemies }),
+    [board, mode, pesci, target, enemies],
   );
 
   const awaitingTarget = mode === "target" && !target;
+
+  function switchScene(next: ChartedScene) {
+    if (next.id === scene.id) return;
+    setScene(next);
+    // Tiles that exist on one field usually do not on the next, and a
+    // half-transplanted line-up would quietly report the wrong distances.
+    reset();
+    setHovered(null);
+  }
 
   function switchMode(next: Mode) {
     if (next === mode) return;
@@ -43,7 +58,7 @@ export default function Simulator() {
   }
 
   function handlePick(hex: Hex) {
-    switch (actionFor(hex, { mode, pesci, target, enemies })) {
+    switch (actionFor(board, hex, { mode, pesci, target, enemies })) {
       case "set-target":
         // Re-marking keeps Pesci: he's on the far half either way, so his
         // position is still legal and you get the new distance immediately.
@@ -53,7 +68,7 @@ export default function Simulator() {
         setPesci(hex);
         // Moving him keeps the line-up — it's on the other half either way —
         // but anyone who ends up sharing his half is off the board.
-        setEnemies((prev) => prev.filter((e) => oppositeHalves(hex, e)));
+        setEnemies((prev) => prev.filter((e) => oppositeHalves(board, hex, e)));
         return;
       case "lift-pesci":
         // Without Pesci there is no "other half", so the line-up goes too.
@@ -88,19 +103,22 @@ export default function Simulator() {
 
       <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
         <div className="flex min-w-0 flex-1 flex-col gap-4">
+          <ScenePicker scene={scene} onPick={switchScene} />
           <ModeTabs mode={mode} onChange={switchMode} />
           <Instructions
             mode={mode}
             awaitingTarget={awaitingTarget}
             hasPesci={!!pesci}
             idealDist={view.idealDist}
+            inRange={view.counts.inRange}
             enemyCount={view.counts.enemies}
             hooked={view.hooked}
             hookedDist={view.hookedDist}
           />
 
-          <div className="rounded-2xl border border-white/10 bg-black/40 p-2 shadow-2xl shadow-black/60 sm:p-3">
+          <div className="overflow-x-auto rounded-2xl border border-white/10 bg-black/40 p-2 shadow-2xl shadow-black/60 sm:p-3">
             <Board
+              board={board}
               tiles={view.tiles}
               pull={view.pull}
               landing={view.landing}
@@ -168,6 +186,7 @@ export default function Simulator() {
           </Panel>
 
           <Readout
+            board={board}
             mode={mode}
             pesci={pesci}
             target={target}
@@ -254,6 +273,7 @@ function Instructions({
   awaitingTarget,
   hasPesci,
   idealDist,
+  inRange,
   enemyCount,
   hooked,
   hookedDist,
@@ -262,6 +282,7 @@ function Instructions({
   awaitingTarget: boolean;
   hasPesci: boolean;
   idealDist: number;
+  inRange: number;
   enemyCount: number;
   hooked: Hex[];
   hookedDist: number | null;
@@ -271,7 +292,9 @@ function Instructions({
     const room = MAX_ENEMIES - enemyCount;
     if (!hasPesci) {
       text =
-        "Click any tile outside the middle ground to drop Pesci there. Every tile within 6 on the opposite half lights up, with the max-range ring in gold.";
+        "Click any tile to drop Pesci there. Every tile within 6 on the opposite half lights up, with the max-range ring in gold.";
+    } else if (inRange === 0) {
+      text = `Pesci is cast, but not one tile on the far half is inside ${MAX_RANGE} from there — the hook can't reach the enemy line at all. Click a tile closer to the middle to move him.`;
     } else if (enemyCount === 0) {
       text = `Pesci is cast. Now click up to ${MAX_ENEMIES} shaded tiles on the far half to stand enemies there — whoever the hook would grab gets it glowing over their head. Click a tile on Pesci's own half to move him, or his tile again to pick him up.`;
     } else if (hooked.length === 0) {
@@ -289,11 +312,13 @@ function Instructions({
   } else if (hasPesci) {
     text =
       "Pesci is cast. Click another tile on his half to move him, anywhere on the target's half to re-mark, or the hook itself to start over.";
+  } else if (idealDist === 0) {
+    text = `Nothing on the opposite half is within ${MAX_RANGE} tiles of that mark, so no cast on this field reaches them. Click a different enemy, or the hook to start over.`;
   } else {
     const opening =
       idealDist === MAX_RANGE
         ? "Those gold tiles put your target at exactly 6 tiles — max range."
-        : `No tile on this board sits 6 away from that target, so the gold tiles are the furthest you can get: ${idealDist} tiles.`;
+        : `No tile on this field sits 6 away from that target, so the gold tiles are the furthest you can get: ${idealDist} tiles.`;
     text = `${opening} Click one to place Pesci — he casts from the half opposite his mark. Clicking the target's own half re-marks instead, and clicking the hook starts over.`;
   }
 
@@ -364,12 +389,14 @@ function Toggle({
 /* ------------------------------------------------------------------ */
 
 function Readout({
+  board,
   mode,
   pesci,
   target,
   hovered,
   view,
 }: {
+  board: BoardShape;
   mode: Mode;
   pesci: Hex | null;
   target: Hex | null;
@@ -389,7 +416,7 @@ function Readout({
             pesci ? (
               <>
                 {hexName(pesci)}{" "}
-                <span className="text-slate-500">({zoneOf(pesci)})</span>
+                <span className="text-slate-500">({zoneOf(board, pesci)})</span>
               </>
             ) : (
               <span className="text-slate-500">not placed</span>
@@ -404,7 +431,7 @@ function Readout({
               target ? (
                 <>
                   {hexName(target)}{" "}
-                  <span className="text-slate-500">({zoneOf(target)})</span>
+                  <span className="text-slate-500">({zoneOf(board, target)})</span>
                 </>
               ) : (
                 <span className="text-slate-500">pick one</span>
@@ -417,7 +444,7 @@ function Readout({
           <>
             <Row
               label={`${
-                zoneOf(pesci) === "ally" ? "Enemy" : "Ally"
+                zoneOf(board, pesci) === "ally" ? "Enemy" : "Ally"
               } tiles in range`}
               value={counts.inRange}
             />
@@ -458,8 +485,18 @@ function Readout({
 
         {mode === "target" && target && !pesci && (
           <Row
-            label={`Ideal spots (${view.idealDist} tiles)`}
-            value={<span className="text-amber-300">{counts.ideal}</span>}
+            label={
+              counts.ideal > 0
+                ? `Ideal spots (${view.idealDist} tiles)`
+                : "Ideal spots"
+            }
+            value={
+              counts.ideal > 0 ? (
+                <span className="text-amber-300">{counts.ideal}</span>
+              ) : (
+                <span className="text-rose-300">none in reach</span>
+              )
+            }
           />
         )}
 
@@ -494,17 +531,28 @@ function Readout({
             ) : (
               <>
                 {hexName(hovered)}{" "}
-                <span className="text-slate-500">{zoneOf(hovered)}</span>
+                <span className="text-slate-500">{zoneOf(board, hovered)}</span>
               </>
             )
           }
         />
       </div>
 
-      {mode === "target" && target && !pesci && view.idealDist < MAX_RANGE && (
-        <p className="mt-3 rounded-lg border border-sky-300/30 bg-sky-400/10 px-3 py-2 text-xs text-sky-200">
-          Nothing on this board is a full {MAX_RANGE} tiles from{" "}
-          {hexName(target)} — {view.idealDist} is as far as you can back off.
+      {mode === "target" &&
+        target &&
+        !pesci &&
+        view.idealDist > 0 &&
+        view.idealDist < MAX_RANGE && (
+          <p className="mt-3 rounded-lg border border-sky-300/30 bg-sky-400/10 px-3 py-2 text-xs text-sky-200">
+            Nothing on this field is a full {MAX_RANGE} tiles from{" "}
+            {hexName(target)} — {view.idealDist} is as far as you can back off.
+          </p>
+        )}
+
+      {mode === "target" && target && !pesci && view.idealDist === 0 && (
+        <p className="mt-3 rounded-lg border border-rose-400/40 bg-rose-500/10 px-3 py-2 text-xs text-rose-200">
+          Every tile on the opposite half sits more than {MAX_RANGE} from{" "}
+          {hexName(target)}, so there is no cast on this field that takes them.
         </p>
       )}
 
@@ -528,9 +576,10 @@ function Readout({
           )}
           {counts.enemies > counts.enemiesInRange && hooked.length > 0 && (
             <Note tone="info">
-              {counts.enemies - counts.enemiesInRange} of them stand further
-              than {MAX_RANGE} tiles out, so the hook can&apos;t reach them at
-              all.
+              {counts.enemies - counts.enemiesInRange === 1
+                ? "One of them stands"
+                : `${counts.enemies - counts.enemiesInRange} of them stand`}
+              {` further than ${MAX_RANGE} tiles out, so the hook can't reach them at all.`}
             </Note>
           )}
           {hooked.length === 1 && hookedDist === MAX_RANGE && (
@@ -701,18 +750,12 @@ function Legend({ mode }: { mode: Mode }) {
       <Swatch
         color="#101d24"
         border="rgba(125,211,252,0.4)"
-        label="Ally half (columns A–C)"
-      />
-      <Swatch
-        color="#15151f"
-        border="rgba(226,214,168,0.4)"
-        dashed
-        label="Neutral middle (column D)"
+        label="Your deploy zone"
       />
       <Swatch
         color="#231019"
         border="rgba(248,113,113,0.5)"
-        label="Enemy half (columns E–G)"
+        label="Enemy deploy zone"
       />
       <Swatch
         color="rgba(245,158,11,0.14)"

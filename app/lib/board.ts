@@ -1,12 +1,12 @@
 import {
-  BOARD,
-  Hex,
+  type Board,
+  type Hex,
   MAX_ENEMIES,
   MAX_RANGE,
-  Zone,
+  type Zone,
   hexDistance,
-  isPlayable,
   key,
+  onBoard,
   oppositeHalves,
   pullPath,
   sameHex,
@@ -52,16 +52,17 @@ export type TileAction =
   | "remove-enemy";
 
 export function actionFor(
+  board: Board,
   hex: Hex,
   { mode, pesci, target, enemies }: Selection,
 ): TileAction {
-  if (!isPlayable(hex)) return "none";
+  if (!onBoard(board, hex)) return "none";
 
   if (mode === "place") {
     if (sameHex(hex, pesci)) return "lift-pesci";
     // Once Pesci is down the far half belongs to the enemy line-up: his own
     // half moves him, the other one populates the board he's aiming at.
-    if (pesci && oppositeHalves(pesci, hex)) {
+    if (pesci && oppositeHalves(board, pesci, hex)) {
       if (enemies.some((e) => sameHex(e, hex))) return "remove-enemy";
       return enemies.length < MAX_ENEMIES ? "add-enemy" : "none";
     }
@@ -72,7 +73,7 @@ export function actionFor(
   // Clicking the hook again drops everything and starts a fresh cast.
   if (sameHex(hex, target)) return "reset";
   // Enemies share a half, so anything on the mark's side re-marks instead.
-  if (!oppositeHalves(target, hex)) return "set-target";
+  if (!oppositeHalves(board, target, hex)) return "set-target";
   return sameHex(hex, pesci) ? "lift-pesci" : "place-pesci";
 }
 
@@ -92,9 +93,14 @@ export type TileView = {
   dist: number | null;
   inRange: boolean;
   /**
-   * In range *and* on the far half, which is the only place an enemy can
-   * stand. Only these tiles get shaded, so the two halves stay legible once
-   * Pesci is down.
+   * On the half opposite Pesci — the only place an enemy can stand, whether
+   * or not the hook reaches it. Worth its own flag because on most scenes a
+   * good part of that half sits past `MAX_RANGE`.
+   */
+  farHalf: boolean;
+  /**
+   * Far half *and* in range. Only these tiles get shaded, so the two halves
+   * stay legible once Pesci is down.
    */
   highlight: boolean;
   isMax: boolean;
@@ -113,9 +119,9 @@ export type BoardView = {
   /** Positions as far from the target as the board allows, up to max range. */
   ideal: Hex[];
   /**
-   * How far those positions actually are. Usually `MAX_RANGE`, but tiles near
-   * the middle of the board simply have no tile 6 steps away, so the best
-   * available cast is shorter.
+   * How far those positions actually are. `MAX_RANGE` when the scene has a
+   * tile a full 6 steps out; less when it doesn't, and 0 when the target is
+   * out of reach from the whole opposite half.
    */
   idealDist: number;
   /** Ordered tiles the target is dragged across, empty when there's no pull. */
@@ -144,19 +150,18 @@ export type BoardView = {
   };
 };
 
-export function deriveBoard({
-  mode,
-  pesci,
-  target,
-  enemies,
-}: Selection): BoardView {
+export function deriveBoard(
+  board: Board,
+  { mode, pesci, target, enemies }: Selection,
+): BoardView {
   // Pesci casts from the half opposite his mark, so that's the only place a
-  // suggested position can be. `oppositeHalves` already rules out neutral.
+  // suggested position can be.
   const candidates =
     mode === "target" && target
-      ? BOARD.filter(
+      ? board.tiles.filter(
           (h) =>
-            oppositeHalves(target, h) && hexDistance(target, h) <= MAX_RANGE,
+            oppositeHalves(board, target, h) &&
+            hexDistance(target, h) <= MAX_RANGE,
         )
       : [];
 
@@ -174,17 +179,15 @@ export function deriveBoard({
   const targetInRange =
     targetDist !== null && targetDist > 0 && targetDist <= MAX_RANGE;
 
-  const pull = pesci && target && targetInRange ? pullPath(target, pesci) : [];
+  const pull =
+    pesci && target && targetInRange ? pullPath(board, target, pesci) : [];
   const pullKeys = new Set(pull.map(key));
   const landing = pull.length > 1 ? pull[pull.length - 1] : null;
 
   // The hook always takes the furthest body it can reach, so the enemies worth
-  // flagging are the ones tied for the largest in-range distance.
-  //
-  // Enemies stand on the half opposite Pesci, and no such pair on this board is
-  // more than `MAX_RANGE` apart — so today nothing is ever out of reach and the
-  // question is only *who is furthest*. The range check stays because it is the
-  // skill's actual wording, and `BOARD` is data.
+  // flagging are the ones tied for the largest in-range distance. On most
+  // scenes the halves are far enough apart that some pairs sit past
+  // `MAX_RANGE`, and then the hook simply can't reach them.
   const enemyKeys = new Set(enemies.map(key));
   const reachable = pesci
     ? enemies.filter((e) => {
@@ -201,18 +204,20 @@ export function deriveBoard({
       : reachable.filter((e) => hexDistance(pesci as Hex, e) === hookedDist);
   const hookedKeys = new Set(hooked.map(key));
 
-  const tiles = BOARD.map<TileView>((hex) => {
+  const tiles = board.tiles.map<TileView>((hex) => {
     const dist = pesci ? hexDistance(pesci, hex) : null;
     const inRange = dist !== null && dist > 0 && dist <= MAX_RANGE;
+    // The far half is the only place a body can be, so it is also the only
+    // place a body can steal the hook from.
+    const farHalf = !!pesci && oppositeHalves(board, pesci, hex);
 
     let threat: Threat = "none";
     if (
       inRange &&
+      farHalf &&
       targetInRange &&
       targetDist !== null &&
       dist !== null &&
-      // Nothing stands in the middle ground, so nothing there can steal.
-      isPlayable(hex) &&
       !sameHex(hex, target)
     ) {
       if (dist > targetDist) threat = "steal";
@@ -229,11 +234,12 @@ export function deriveBoard({
 
     return {
       hex,
-      zone: zoneOf(hex),
-      action: actionFor(hex, { mode, pesci, target, enemies }),
+      zone: zoneOf(board, hex) as Zone,
+      action: actionFor(board, hex, { mode, pesci, target, enemies }),
       dist,
       inRange,
-      highlight: inRange && !!pesci && oppositeHalves(pesci, hex),
+      farHalf,
+      highlight: inRange && farHalf,
       isMax: dist === MAX_RANGE,
       isIdeal: idealKeys.has(key(hex)),
       isTarget: sameHex(hex, target),
