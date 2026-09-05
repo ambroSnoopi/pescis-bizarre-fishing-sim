@@ -1,0 +1,78 @@
+name: Goal Progress – Lines of Code
+
+# Reports merged/pushed lines of code as progress to an RPG Your Life goal webhook.
+# Fires on every push to main (direct pushes and PR merges both produce a push).
+
+on:
+  push:
+    branches: ["main"]
+
+permissions:
+  contents: read
+
+jobs:
+  report-loc:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+        with:
+          # Full history so we can diff the previous tip against the new one.
+          fetch-depth: 0
+
+      - name: Calculate lines of code
+        id: calc
+        env:
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.event.after }}
+        run: |
+          set -euo pipefail
+
+          # Pick the diff base. Normally the previous tip of main (github.event.before).
+          # Fall back to the parent of the new commit (e.g. force-push where the old
+          # tip is gone), then to the empty tree (first push / initial commit).
+          BASE="$BEFORE"
+          if ! git cat-file -e "${BEFORE}^{commit}" 2>/dev/null; then
+            if git cat-file -e "${AFTER}~1^{commit}" 2>/dev/null; then
+              BASE="${AFTER}~1"
+            else
+              BASE="$(git hash-object -t tree /dev/null)"  # empty tree
+            fi
+          fi
+
+          # Sum added/deleted lines across the net diff. Binary files report "-"; treat as 0.
+          # Exclude generated files so they don't inflate the count: the npm lock file
+          # (dependency bumps add thousands of lines), Jest snapshots, and binary assets.
+          read -r ADDED DELETED < <(
+            git diff --numstat "$BASE" "$AFTER" \
+              -- . \
+                 ':(exclude)package-lock.json' \
+                 ':(exclude)**/__snapshots__/**' \
+                 ':(exclude)assets/**' \
+            | awk '
+              { a = ($1 == "-" ? 0 : $1); d = ($2 == "-" ? 0 : $2); add += a; del += d }
+              END { printf "%d %d\n", add, del }'
+          )
+
+          # amount = LoC_deleted + (LoC_added - LoC_deleted) / 2   (== (added + deleted) / 2)
+          AMOUNT="$(awk -v a="$ADDED" -v d="$DELETED" 'BEGIN { x = d + (a - d) / 2; printf "%d", (x == int(x)) ? x : int(x) + 1 }')"
+
+          echo "Added: $ADDED, Deleted: $DELETED, Amount: $AMOUNT"
+          {
+            echo "added=$ADDED"
+            echo "deleted=$DELETED"
+            echo "amount=$AMOUNT"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Report progress to goal webhook
+        if: steps.calc.outputs.amount != '0'
+        env:
+          WEBHOOK_URL: ${{ secrets.RPGYL_GOAL_LOC_URL }}
+          WEBHOOK_SECRET: ${{ secrets.RPGYL_GOAL_LOC_SECRET }}
+          AMOUNT: ${{ steps.calc.outputs.amount }}
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --retry 3 -X POST "$WEBHOOK_URL" \
+            -H "Authorization: Bearer $WEBHOOK_SECRET" \
+            -H "Content-Type: application/json" \
+            -d "{\"amount\": $AMOUNT}"
