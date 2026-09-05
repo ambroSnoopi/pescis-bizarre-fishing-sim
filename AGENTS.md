@@ -74,6 +74,8 @@ A layout comes from a screenshot of that scene's deployment view: shaded hexes a
 
 Neutral tiles are drawn and they carry distance and the reel-in, but nobody deploys there: `isPlayable()` is the gate, and `oppositeHalves()` already excludes them. `showNeutral` in `Simulator.tsx` only decides whether they are *drawn* — `Board.tsx` filters them out of every layer at once — so it can never change a distance or a verdict.
 
+**Compact hides prose, never results.** `compact` in `Simulator.tsx` strips the tagline, the scene blurb, the tips paragraph, the legend and the skill card, and folds the Options toggles away — everything it touches is explanation, so the board, the cast report and the scene info read the same either way. Keep it that way: anything that carries a distance or a verdict does not belong behind it. The fold is a default, not a lock — `Panel` takes an optional `open`/`onToggle` pair that makes its title a disclosure, and the caller decides what `open` hides, which is how the Options buttons stay on show while the toggles are folded. That matters here, because the Compact checkbox itself is one of the toggles that gets folded.
+
 **Zone shapes are per-scene and not always symmetric.** Five scenes are point-symmetric — rotate 180° about the middle and one half lands on the other — and River Delta is not: twelve tiles on the shaded half against nine on the enemy's. Don't "fix" that by mirroring; it is traced from the screenshot.
 
 **Same shape, different scene.** Night Pasture and Snowbound Lodge have identical deploy zones and play nothing alike — two columns of middle ground against four. Zone shape alone doesn't identify a scene; the gap does.

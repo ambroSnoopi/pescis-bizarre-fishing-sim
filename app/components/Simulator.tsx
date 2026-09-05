@@ -33,10 +33,13 @@ export default function Simulator() {
   // Off by default: the reel-in is what happens *after* the cast lands, so it
   // is noise while you are still working out where to stand.
   const [showPull, setShowPull] = useState(false);
-  // Strips the explanatory chrome — scene blurb, tips, legend — for anyone who
-  // already knows the app and just wants the board. Nothing it hides carries a
-  // result, so the readout is untouched either way.
+  // Strips the explanatory chrome — tagline, scene blurb, tips, legend, skill
+  // text — for anyone who already knows the app and just wants the board.
+  // Nothing it hides carries a result, so the readout is untouched either way.
   const [compact, setCompact] = useState(false);
+  // The options fold away with it, but only as a default: the panel is a
+  // disclosure either way, so the toggle that got you here is one click back.
+  const [optionsOpen, setOptionsOpen] = useState(true);
 
   const board = scene.board;
 
@@ -54,6 +57,11 @@ export default function Simulator() {
     // half-transplanted line-up would quietly report the wrong distances.
     reset();
     setHovered(null);
+  }
+
+  function switchCompact(next: boolean) {
+    setCompact(next);
+    setOptionsOpen(!next);
   }
 
   function switchMode(next: Mode) {
@@ -106,7 +114,7 @@ export default function Simulator() {
 
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6 lg:py-10">
-      <Header />
+      <Header compact={compact} />
 
       <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
         <div className="flex min-w-0 flex-1 flex-col gap-4">
@@ -147,36 +155,42 @@ export default function Simulator() {
         </div>
 
         <aside className="flex w-full shrink-0 flex-col gap-4 lg:w-[22rem]">
-          <Panel title="Options">
+          <Panel title="Options" open={optionsOpen} onToggle={setOptionsOpen}>
             <div className="flex flex-col gap-2">
-              <Toggle
-                label="Show the middle ground"
-                hint="The tiles between the halves, where nobody deploys"
-                checked={showNeutral}
-                onChange={setShowNeutral}
-              />
-              {/* Sits above the mode-specific toggles so it keeps its place
-                  when they come and go. */}
-              <Toggle
-                label="Compact view"
-                hint="Hides the scene blurb, the tips and the legend"
-                checked={compact}
-                onChange={setCompact}
-              />
-              {mode === "target" && (
+              {/* Folded away, the buttons below stay — they are the ones you
+                  reach for mid-plan, and they read as the panel either way. */}
+              {optionsOpen && (
                 <>
                   <Toggle
-                    label="Warn about hook stealers"
-                    hint="Tiles where another enemy would be grabbed instead"
-                    checked={showThreats}
-                    onChange={setShowThreats}
+                    label="Show the middle ground"
+                    hint="The tiles between the halves, where nobody deploys"
+                    checked={showNeutral}
+                    onChange={setShowNeutral}
                   />
+                  {/* Sits above the mode-specific toggles so it keeps its place
+                      when they come and go. */}
                   <Toggle
-                    label="Show the reel-in path"
-                    hint={`Where the target is dragged over ${PULL_TILES}s`}
-                    checked={showPull}
-                    onChange={setShowPull}
+                    label="Compact view"
+                    hint="Hides the blurb, tips, legend and skill text"
+                    checked={compact}
+                    onChange={switchCompact}
                   />
+                  {mode === "target" && (
+                    <>
+                      <Toggle
+                        label="Warn about hook stealers"
+                        hint="Tiles where another enemy would be grabbed instead"
+                        checked={showThreats}
+                        onChange={setShowThreats}
+                      />
+                      <Toggle
+                        label="Show the reel-in path"
+                        hint={`Where the target is dragged over ${PULL_TILES}s`}
+                        checked={showPull}
+                        onChange={setShowPull}
+                      />
+                    </>
+                  )}
                 </>
               )}
               <div className="flex gap-2 pt-1">
@@ -220,7 +234,7 @@ export default function Simulator() {
 
           <SceneInfo scene={scene} />
 
-          <SkillCard />
+          {!compact && <SkillCard />}
         </aside>
       </div>
 
@@ -233,7 +247,7 @@ export default function Simulator() {
 /* Chrome                                                              */
 /* ------------------------------------------------------------------ */
 
-function Header() {
+function Header({ compact }: { compact: boolean }) {
   return (
     <header className="flex flex-col gap-1">
       {/* Both titles shrink on narrow screens so they stay on one line. */}
@@ -248,11 +262,13 @@ function Header() {
           Pesci&apos;s Bizarre Fishing Simulator
         </span>
       </h1>
-      <p className="max-w-3xl text-sm text-slate-400">
-        Beach Boy only bites at the right distance. Line up{" "}
-        <span className="text-amber-200">Fisher Man</span> on the hex
-        battlefield before you waste the cast.
-      </p>
+      {!compact && (
+        <p className="max-w-3xl text-sm text-slate-400">
+          Beach Boy only bites at the right distance. Line up{" "}
+          <span className="text-amber-200">Fisher Man</span> on the hex
+          battlefield before you waste the cast.
+        </p>
+      )}
     </header>
   );
 }
@@ -355,20 +371,66 @@ function Instructions({
   );
 }
 
+const PANEL_TITLE = "font-mono text-xs uppercase tracking-[0.2em] text-slate-400";
+
+/**
+ * A titled box in the sidebar.
+ *
+ * Passing `onToggle` turns the title into a disclosure control. The panel
+ * itself hides nothing — what `open` folds away is the caller's call, so a
+ * panel can keep part of itself (the Options buttons) on show while collapsed.
+ */
 function Panel({
   title,
+  open,
+  onToggle,
   children,
 }: {
   title: string;
+  open?: boolean;
+  onToggle?: (open: boolean) => void;
   children: React.ReactNode;
 }) {
   return (
     <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-      <h2 className="mb-3 font-mono text-xs uppercase tracking-[0.2em] text-slate-400">
-        {title}
-      </h2>
+      {onToggle ? (
+        <h2 className="mb-3">
+          <button
+            type="button"
+            aria-expanded={!!open}
+            onClick={() => onToggle(!open)}
+            className={`flex w-full items-center justify-between gap-2 rounded-sm transition hover:text-slate-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-300 ${PANEL_TITLE}`}
+          >
+            {title}
+            <Chevron open={!!open} />
+          </button>
+        </h2>
+      ) : (
+        <h2 className={`mb-3 ${PANEL_TITLE}`}>{title}</h2>
+      )}
       {children}
     </section>
+  );
+}
+
+function Chevron({ open }: { open: boolean }) {
+  return (
+    <svg
+      viewBox="0 0 12 12"
+      width="11"
+      height="11"
+      aria-hidden="true"
+      className={`shrink-0 transition-transform ${open ? "" : "-rotate-90"}`}
+    >
+      <path
+        d="M2 4.5 6 8.5 10 4.5"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
   );
 }
 
