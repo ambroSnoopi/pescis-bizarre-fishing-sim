@@ -5,8 +5,8 @@ import {
   MAX_RANGE,
   type Zone,
   hexDistance,
+  isPlayable,
   key,
-  onBoard,
   oppositeHalves,
   pullPath,
   sameHex,
@@ -56,7 +56,7 @@ export function actionFor(
   hex: Hex,
   { mode, pesci, target, enemies }: Selection,
 ): TileAction {
-  if (!onBoard(board, hex)) return "none";
+  if (!isPlayable(board, hex)) return "none";
 
   if (mode === "place") {
     if (sameHex(hex, pesci)) return "lift-pesci";
@@ -155,7 +155,7 @@ export function deriveBoard(
   { mode, pesci, target, enemies }: Selection,
 ): BoardView {
   // Pesci casts from the half opposite his mark, so that's the only place a
-  // suggested position can be.
+  // suggested position can be. `oppositeHalves` already rules out neutral.
   const candidates =
     mode === "target" && target
       ? board.tiles.filter(
@@ -208,7 +208,8 @@ export function deriveBoard(
     const dist = pesci ? hexDistance(pesci, hex) : null;
     const inRange = dist !== null && dist > 0 && dist <= MAX_RANGE;
     // The far half is the only place a body can be, so it is also the only
-    // place a body can steal the hook from.
+    // place a body can steal the hook from — that rules out the middle
+    // ground too, since nothing stands there.
     const farHalf = !!pesci && oppositeHalves(board, pesci, hex);
 
     let threat: Threat = "none";

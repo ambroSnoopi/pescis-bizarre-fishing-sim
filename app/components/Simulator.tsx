@@ -17,15 +17,18 @@ import {
   sameHex,
   zoneOf,
 } from "../lib/hex";
-import { type ChartedScene, DEFAULT_SCENE } from "../lib/maps";
+import { type Scene, DEFAULT_SCENE } from "../lib/maps";
 
 export default function Simulator() {
-  const [scene, setScene] = useState<ChartedScene>(DEFAULT_SCENE);
+  const [scene, setScene] = useState<Scene>(DEFAULT_SCENE);
   const [mode, setMode] = useState<Mode>("place");
   const [pesci, setPesci] = useState<Hex | null>(null);
   const [target, setTarget] = useState<Hex | null>(null);
   const [enemies, setEnemies] = useState<Hex[]>([]);
   const [hovered, setHovered] = useState<Hex | null>(null);
+  // The middle ground is only ever scenery — on by default because it shows
+  // how far apart the halves are, which is the thing that changes per scene.
+  const [showNeutral, setShowNeutral] = useState(true);
   const [showThreats, setShowThreats] = useState(true);
   // Off by default: the reel-in is what happens *after* the cast lands, so it
   // is noise while you are still working out where to stand.
@@ -40,7 +43,7 @@ export default function Simulator() {
 
   const awaitingTarget = mode === "target" && !target;
 
-  function switchScene(next: ChartedScene) {
+  function switchScene(next: Scene) {
     if (next.id === scene.id) return;
     setScene(next);
     // Tiles that exist on one field usually do not on the next, and a
@@ -126,6 +129,7 @@ export default function Simulator() {
               target={target}
               hovered={hovered}
               awaitingTarget={awaitingTarget}
+              showNeutral={showNeutral}
               showThreats={showThreats && mode === "target"}
               showPull={showPull && mode === "target"}
               onPick={handlePick}
@@ -133,12 +137,18 @@ export default function Simulator() {
             />
           </div>
 
-          <Legend mode={mode} />
+          <Legend mode={mode} showNeutral={showNeutral} />
         </div>
 
         <aside className="flex w-full shrink-0 flex-col gap-4 lg:w-[22rem]">
           <Panel title="Options">
             <div className="flex flex-col gap-2">
+              <Toggle
+                label="Show the middle ground"
+                hint="The tiles between the halves, where nobody deploys"
+                checked={showNeutral}
+                onChange={setShowNeutral}
+              />
               {mode === "target" && (
                 <>
                   <Toggle
@@ -292,7 +302,7 @@ function Instructions({
     const room = MAX_ENEMIES - enemyCount;
     if (!hasPesci) {
       text =
-        "Click any tile to drop Pesci there. Every tile within 6 on the opposite half lights up, with the max-range ring in gold.";
+        "Click any tile outside the middle ground to drop Pesci there. Every tile within 6 on the opposite half lights up, with the max-range ring in gold.";
     } else if (inRange === 0) {
       text = `Pesci is cast, but not one tile on the far half is inside ${MAX_RANGE} from there — the hook can't reach the enemy line at all. Click a tile closer to the middle to move him.`;
     } else if (enemyCount === 0) {
@@ -744,7 +754,7 @@ function Swatch({
   );
 }
 
-function Legend({ mode }: { mode: Mode }) {
+function Legend({ mode, showNeutral }: { mode: Mode; showNeutral: boolean }) {
   return (
     <div className="grid grid-cols-2 gap-x-4 gap-y-2 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 sm:grid-cols-3">
       <Swatch
@@ -752,6 +762,14 @@ function Legend({ mode }: { mode: Mode }) {
         border="rgba(125,211,252,0.4)"
         label="Your deploy zone"
       />
+      {showNeutral && (
+        <Swatch
+          color="#15151f"
+          border="rgba(226,214,168,0.4)"
+          dashed
+          label="Neutral middle"
+        />
+      )}
       <Swatch
         color="#231019"
         border="rgba(248,113,113,0.5)"

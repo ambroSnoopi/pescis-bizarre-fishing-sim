@@ -24,29 +24,32 @@ In target mode the board also shows:
 
 The game has six PvP scenes, and they are not just backdrops: every one has its own deployment zones, laid out differently and separated by a different amount of open ground. The same cast that sits at max range on one field is out of the hook's reach on the next, which is the whole reason the picker exists.
 
-Five of them are charted, traced off a screenshot of each scene's deployment view:
+Each one is traced off a screenshot of its deployment view:
 
 | Scene | Field | Deploy tiles | Opposing tiles sit |
 | --- | --- | --- | --- |
+| Night Pasture | 7×5 | 11 v 11 | 2–6 apart |
 | Snowbound Lodge | 9×5 | 11 v 11 | 4–8 apart |
 | Desert Mesa | 7×5 | 10 v 10 | 1–8 apart |
 | Old Town Street | 8×5 | 11 v 11 | 4–8 apart |
 | Monument Plaza | 8×5 | 11 v 11 | 2–8 apart |
 | River Delta | 6×5 | 12 v 9 | 1–5 apart |
 
-The mini-maps in the picker are cropped out of the game's own scene list and live in `public/maps/`.
+Night Pasture opens the app: it's the board the app had before the scenes were selectable. Note the first two rows — Night Pasture and Snowbound Lodge have *identical* deploy zones and play nothing alike, because the gap between the halves is two columns on one and four on the other. Zone shape doesn't tell you a scene; the gap does.
 
-Night Pasture is listed in the picker but greyed out — there's no screenshot of its deployment view yet, so there's nothing to plan on. The scene names are descriptive; the in-game picker shows the artwork, not a name.
+Night Pasture and River Delta are the only fields where nothing is ever out of range, so the only question on them is who is furthest. Everywhere else the hook genuinely fails to reach the back of the enemy line. River Delta is also the odd one out for shape: its halves are lopsided, twelve tiles against nine, where the other five are point-symmetric.
 
-Two things are worth reading off that table. River Delta is the one field where nothing is ever out of range, so the only question there is who is furthest — everywhere else the hook genuinely fails to reach the back of the enemy line. And River Delta's halves are lopsided, twelve tiles against nine; the other four are point-symmetric.
+The scene names are descriptive — the in-game picker shows the artwork, not a name. The mini-maps are cropped out of that picker and live in `public/maps/`.
 
 ## The board model
 
-Pointy-top hexes in an odd-r offset layout: odd rows sit half a tile to the right, which is what makes the boundary between the halves zig-zag in game. Only the deploy tiles are drawn, because those are the only hexes the game draws — the gap between the halves is open ground, not a row of neutral tiles.
+Pointy-top hexes in an odd-r offset layout: odd rows sit half a tile to the right, which is what makes the boundary between the halves zig-zag in game.
 
-That ground still counts. Distances are hex steps (converted to cube coordinates) measured straight across the field, and the reel-in drags its catch over the gap like any other tile.
+Between the two deploy zones is the neutral middle ground. Nothing deploys there, so those tiles can't be clicked, but they still count for distance and the hook drags its catch back across them. A screenshot only shows the deploy tiles, so the middle is worked out from them: each row runs from its leftmost deploy tile to its rightmost, and whatever isn't a deploy tile inside that run is neutral. That fills the gap between the halves and the holes *within* a half that several scenes have — Desert Mesa's two outposts sit alone in no-man's land. You can hide the middle ground from Options if you'd rather see the deploy zones on their own; it's a drawing choice and changes no distance.
 
-Two consequences worth knowing. Not every tile has another tile exactly 6 steps away, so for some targets the app falls back to the furthest position that does exist and says so. And on four of the five fields plenty of pairs sit outside the hook's reach entirely — out-of-range enemies show up dashed and grey, and the tiles past 6 keep their distance in dim type so you can see how far past.
+Distances are hex steps, converted to cube coordinates and measured straight across the field.
+
+Two consequences worth knowing. Not every tile has another tile exactly 6 steps away, so for some targets the app falls back to the furthest position that does exist and says so. And on four of the six fields plenty of pairs sit outside the hook's reach entirely — out-of-range enemies show up dashed and grey, and the tiles past 6 keep their distance in dim type so you can see how far past.
 
 ## Using the real game art
 
@@ -96,10 +99,10 @@ npm run build      # production build
 Three things worth knowing before you touch the board:
 
 - There is no global board. `app/lib/hex.ts` defines the `Board` type and the geometry that operates on one; `app/lib/maps.ts` holds the six scenes and builds a board for each from its deploy zones. Everything downstream takes the active board as an argument.
-- A deploy tile and a field square are different things. `onBoard()` asks whether a hex is a tile somebody stands on; `onField()` asks whether it is inside the field at all, which is what the reel-in path walks so it can cross the gap between the halves.
+- The grid is not a rectangle and the middle ground is unplayable. `onBoard()` is membership in the tile list, not a bounds check, and `isPlayable()` is what excludes the middle.
 - What a click does is decided in one place, `actionFor()` in `app/lib/board.ts`. Both the click handler and the per-tile accessibility labels call it, so change the rule there rather than in the component and the two stay in agreement.
 
-Adding the missing scene is a screenshot and one `makeBoard(...)` call in `app/lib/maps.ts` — see the notes at the top of that file for how a layout is read off the deployment view.
+Adding or correcting a scene is one `makeBoard(...)` call in `app/lib/maps.ts` — see the notes at the top of that file for how a layout is read off a deployment screenshot.
 
 ---
 

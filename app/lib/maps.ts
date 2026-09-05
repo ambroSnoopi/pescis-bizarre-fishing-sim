@@ -5,18 +5,19 @@ import { type Board, makeBoard } from "./hex";
  *
  * Each layout is traced off a screenshot of that scene's deployment view: the
  * shaded hexes are your half, the red ones the enemy's, and `ally`/`enemy`
- * below list their column indices row by row, top row first.
+ * below list their column indices row by row, top row first. `makeBoard` fills
+ * in the middle ground between them.
  *
- * Two things the tracing makes obvious, and that the old single-board version
- * papered over:
+ * Two things the tracing makes obvious, and that a single board hid:
  *
- *  - **The halves are far apart, and by a different amount on every scene.**
- *    Nothing is drawn in between — that ground is empty, not neutral tiles —
- *    but it still counts for distance, which is what puts most of these boards
- *    well outside the hook's 6 tiles at their extremes.
- *  - **The two zones are not the same shape.** Four of the five charted scenes
- *    are point-symmetric (rotate 180° about the middle of the field and one
- *    half lands on the other); River Delta simply is not — its shaded half has
+ *  - **The halves sit different distances apart on every scene.** Night
+ *    Pasture and Snowbound Lodge have the same zone shapes and play nothing
+ *    alike: two columns of middle ground against four, so a cast that is max
+ *    range on one is out of reach on the other. That gap is what decides
+ *    whether the hook's 6 tiles matter.
+ *  - **The two zones are not always the same shape.** Five scenes are
+ *    point-symmetric (rotate 180° about the middle of the field and one half
+ *    lands on the other); River Delta simply is not — its shaded half has
  *    twelve tiles to the enemy's nine.
  *
  * Scene names are descriptive. The picker screenshots show the artwork but not
@@ -29,11 +30,8 @@ export type Scene = {
   blurb: string;
   /** Mini-map, cropped out of the in-game scene picker. */
   thumb: string;
-  /** Null until the scene's deploy zones have been traced off a screenshot. */
-  board: Board | null;
+  board: Board;
 };
-
-export type ChartedScene = Scene & { board: Board };
 
 export const SCENES: readonly Scene[] = [
   {
@@ -41,9 +39,10 @@ export const SCENES: readonly Scene[] = [
     name: "Night Pasture",
     blurb: "Farmhouses over a dark field",
     thumb: "/maps/meadow.webp",
-    // No deployment screenshot for this one yet — the picker lists it so all
-    // six scenes are accounted for, but there is nothing to plan on.
-    board: null,
+    board: makeBoard(
+      [[1, 2], [0, 1], [0, 1, 2], [0, 1], [1, 2]],
+      [[4, 5], [4, 5], [4, 5, 6], [4, 5], [4, 5]],
+    ),
   },
   {
     id: "snow",
@@ -97,16 +96,9 @@ export const SCENES: readonly Scene[] = [
   },
 ];
 
-export function isCharted(scene: Scene): scene is ChartedScene {
-  return scene.board !== null;
-}
-
-export const CHARTED_SCENES: readonly ChartedScene[] = SCENES.filter(isCharted);
-
 /**
- * Snowbound Lodge opens the app: it is the shape the board had before scenes
- * were selectable, and its 4–8 tile spread exercises the whole of the hook's
- * reach — some pairs inside it, some past it.
+ * Night Pasture opens the app: it is the board the app shipped with before
+ * scenes were selectable, and the one scene where the halves are close enough
+ * that nothing is ever out of the hook's reach.
  */
-export const DEFAULT_SCENE: ChartedScene =
-  CHARTED_SCENES.find((s) => s.id === "snow") ?? CHARTED_SCENES[0];
+export const DEFAULT_SCENE: Scene = SCENES[0];

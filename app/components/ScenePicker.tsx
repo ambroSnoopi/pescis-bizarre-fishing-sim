@@ -3,7 +3,7 @@
 import Image from "next/image";
 
 import { MAX_RANGE, zoneOf } from "../lib/hex";
-import { type ChartedScene, SCENES, type Scene, isCharted } from "../lib/maps";
+import { SCENES, type Scene } from "../lib/maps";
 
 /**
  * The game's "Switch Scene" list, rebuilt as the app's board picker.
@@ -17,12 +17,12 @@ export default function ScenePicker({
   scene,
   onPick,
 }: {
-  scene: ChartedScene;
-  onPick: (scene: ChartedScene) => void;
+  scene: Scene;
+  onPick: (scene: Scene) => void;
 }) {
   const { board } = scene;
   const ally = board.tiles.filter((h) => zoneOf(board, h) === "ally").length;
-  const enemy = board.tiles.length - ally;
+  const enemy = board.tiles.filter((h) => zoneOf(board, h) === "enemy").length;
 
   return (
     <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-3 sm:p-4">
@@ -63,24 +63,17 @@ function SceneCard({
 }: {
   scene: Scene;
   active: boolean;
-  onPick: (scene: ChartedScene) => void;
+  onPick: (scene: Scene) => void;
 }) {
-  const charted = isCharted(scene);
-
   return (
     <button
       type="button"
-      // Not `disabled`: an uncharted scene is still worth finding with the
-      // keyboard, it just has nothing to select.
-      aria-disabled={charted ? undefined : true}
       aria-pressed={active}
-      onClick={charted ? () => onPick(scene) : undefined}
+      onClick={() => onPick(scene)}
       className={`group relative block overflow-hidden rounded-lg border text-left transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-300 ${
         active
           ? "border-amber-300/70 ring-2 ring-amber-300/40"
-          : charted
-            ? "border-white/10 hover:border-white/40"
-            : "cursor-not-allowed border-white/5"
+          : "border-white/10 hover:border-white/40"
       }`}
     >
       <Image
@@ -92,28 +85,20 @@ function SceneCard({
         width={384}
         height={208}
         className={`block h-auto w-full transition ${
-          charted
-            ? active
-              ? ""
-              : "opacity-70 group-hover:opacity-100"
-            : "opacity-30 grayscale"
+          active ? "" : "opacity-70 group-hover:opacity-100"
         }`}
       />
 
       <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/60 to-transparent px-1.5 pb-1 pt-4">
         <span
           className={`block text-[10px] font-semibold leading-tight ${
-            active
-              ? "text-amber-200"
-              : charted
-                ? "text-slate-200"
-                : "text-slate-500"
+            active ? "text-amber-200" : "text-slate-200"
           }`}
         >
           {scene.name}
         </span>
         <span className="block truncate text-[9px] leading-tight text-slate-500">
-          {charted ? scene.blurb : "layout not traced yet"}
+          {scene.blurb}
         </span>
       </span>
     </button>

@@ -19,11 +19,13 @@ import { EnemyToken, HookToken, PesciToken } from "./tokens";
 
 const ZONE_FILL: Record<TileView["zone"], string> = {
   ally: "#101d24",
+  neutral: "#15151f",
   enemy: "#231019",
 };
 
 const ZONE_STROKE: Record<TileView["zone"], string> = {
   ally: "rgba(125, 211, 252, 0.22)",
+  neutral: "rgba(226, 214, 168, 0.20)",
   enemy: "rgba(248, 113, 113, 0.38)",
 };
 
@@ -99,6 +101,7 @@ export type BoardProps = {
   target: Hex | null;
   hovered: Hex | null;
   awaitingTarget: boolean;
+  showNeutral: boolean;
   showThreats: boolean;
   showPull: boolean;
   onPick: (hex: Hex) => void;
@@ -114,6 +117,7 @@ export default function Board({
   target,
   hovered,
   awaitingTarget,
+  showNeutral,
   showThreats,
   showPull,
   onPick,
@@ -121,6 +125,10 @@ export default function Board({
 }: BoardProps) {
   const width = boardWidth(board);
   const height = boardHeight(board);
+  // Hiding the middle ground is purely a matter of not drawing it — those
+  // tiles are never clickable, highlighted or occupied, so dropping them here
+  // covers every layer below at once.
+  const drawn = showNeutral ? tiles : tiles.filter((t) => t.zone !== "neutral");
   const pullLine = pull
     .map((h) => {
       const { x, y } = hexToPixel(h);
@@ -137,7 +145,7 @@ export default function Board({
       style={{ minWidth: `${Math.round((board.cols + 0.5) * 48)}px` }}
       className="w-full select-none"
       role="group"
-      aria-label={`Battlefield, ${tiles.length} deploy tiles on a ${board.cols} by ${board.rows} hex field`}
+      aria-label={`Battlefield, ${drawn.length} tiles across ${board.cols} columns and ${board.rows} rows`}
     >
       <defs>
         <radialGradient id="fieldBg" cx="50%" cy="45%" r="75%">
@@ -214,24 +222,38 @@ export default function Board({
         >
           ENEMY SIDE
         </text>
+        {showNeutral && (
+          /* The middle ground isn't one column any more — it is however wide
+             the two halves leave it — so the caption sits under the board. */
+          <text
+            x={width / 2}
+            y={height - PAD + 26}
+            textAnchor="middle"
+            fontSize="11"
+            fill="rgba(226, 214, 168, 0.45)"
+          >
+            NEUTRAL
+          </text>
+        )}
       </g>
 
       {/* Base tiles */}
       <g>
-        {tiles.map((t) => (
+        {drawn.map((t) => (
           <polygon
             key={`base-${t.hex.col}-${t.hex.row}`}
             points={hexPoints(t.hex)}
             fill={ZONE_FILL[t.zone]}
             stroke={ZONE_STROKE[t.zone]}
             strokeWidth={1.5}
+            strokeDasharray={t.zone === "neutral" ? "5 4" : undefined}
           />
         ))}
       </g>
 
       {/* Range rings — far half only, so the two halves stay readable */}
       <g>
-        {tiles
+        {drawn
           .filter((t) => t.highlight)
           .map((t) => (
             <polygon
@@ -247,7 +269,7 @@ export default function Board({
       {/* Steal / tie warnings */}
       {showThreats && (
         <g>
-          {tiles
+          {drawn
             .filter((t) => t.threat !== "none")
             .map((t) => (
               <polygon
@@ -267,7 +289,7 @@ export default function Board({
 
       {/* Max range ring — the sweet spot */}
       <g filter="url(#goldGlow)">
-        {tiles
+        {drawn
           .filter((t) => t.isMax && t.highlight)
           .map((t) => (
             <polygon
@@ -283,7 +305,7 @@ export default function Board({
 
       {/* Ideal positions for the picked target */}
       <g>
-        {tiles
+        {drawn
           .filter((t) => t.isIdeal && !t.isPesci)
           .map((t) => {
             const { x, y } = hexToPixel(t.hex);
@@ -316,7 +338,7 @@ export default function Board({
 
       {/* Enemy line-up — the hooked ones wear the glowing hook */}
       <g>
-        {tiles
+        {drawn
           .filter((t) => t.enemy !== "none")
           .map((t) => {
             const style = ENEMY_STYLE[t.enemy as keyof typeof ENEMY_STYLE];
@@ -418,7 +440,7 @@ export default function Board({
 
       {/* Distance labels */}
       <g className="font-mono pointer-events-none">
-        {tiles.map((t) => {
+        {drawn.map((t) => {
           const { x, y } = hexToPixel(t.hex);
           // Occupied tiles carry their own marker (and, for enemies, their own
           // distance beneath it) — a centred label would sit under the token.
@@ -490,12 +512,15 @@ export default function Board({
 
       {/* Hover + interaction layer */}
       <g>
-        {tiles.map((t) => {
+        {drawn.map((t) => {
           const isHovered = sameHex(hovered, t.hex);
           const playable = t.action !== "none";
-          // Every tile on the board is a deploy tile, so the only reason one
-          // goes dead is the enemy line-up being full.
-          const blocked = "enemy line-up is full, remove one first";
+          // A playable tile with nothing to do is the enemy line-up being
+          // full — the middle ground is the only other dead tile.
+          const blocked =
+            t.zone === "neutral"
+              ? "neutral middle, nobody stands here"
+              : "enemy line-up is full, remove one first";
           const label = [
             hexName(t.hex),
             playable ? `${t.zone} side` : blocked,
