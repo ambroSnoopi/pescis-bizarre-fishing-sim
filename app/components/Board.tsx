@@ -14,7 +14,7 @@ import {
   hexToPixel,
   sameHex,
 } from "../lib/hex";
-import { HookToken, PesciToken } from "./tokens";
+import { EnemyToken, HookToken, PesciToken } from "./tokens";
 
 const ZONE_FILL: Record<TileView["zone"], string> = {
   ally: "#101d24",
@@ -35,6 +35,8 @@ const ACTION_HINT: Record<TileView["action"], string | null> = {
   "place-pesci": "click to place Pesci",
   "lift-pesci": "click to pick Pesci up",
   reset: "click to clear the board",
+  "add-enemy": "click to stand an enemy here",
+  "remove-enemy": "click to take this enemy off the board",
 };
 
 /** Hover outline, colour-coded to the same actions. */
@@ -44,6 +46,39 @@ const ACTION_STROKE: Record<TileView["action"], string> = {
   "place-pesci": "rgba(255,255,255,0.85)",
   "lift-pesci": "rgba(255,255,255,0.85)",
   reset: "#fb7185",
+  "add-enemy": "#fb7185",
+  "remove-enemy": "rgba(255,255,255,0.85)",
+};
+
+/** How a placed enemy reads on the board, once the hook has picked. */
+const ENEMY_STYLE: Record<
+  Exclude<TileView["enemy"], "none">,
+  { fill: string; stroke: string; token: string; dashed?: boolean }
+> = {
+  hooked: {
+    fill: "rgba(250, 204, 21, 0.20)",
+    stroke: "#facc15",
+    token: "#fca5a5",
+  },
+  safe: {
+    fill: "rgba(251, 113, 133, 0.14)",
+    stroke: "#fb7185",
+    token: "#fb7185",
+  },
+  "out-of-range": {
+    fill: "rgba(148, 163, 184, 0.10)",
+    stroke: "rgba(148, 163, 184, 0.55)",
+    token: "#94a3b8",
+    dashed: true,
+  },
+};
+
+/** Spoken state for a placed enemy, so the board reads the same as it looks. */
+const ENEMY_HINT: Record<TileView["enemy"], string | null> = {
+  none: null,
+  hooked: "enemy here, the hook takes them",
+  safe: "enemy here, someone further out takes the hook",
+  "out-of-range": "enemy here, out of the hook's reach",
 };
 
 /**
@@ -282,6 +317,60 @@ export default function Board({
           })}
       </g>
 
+      {/* Enemy line-up — the hooked ones wear the glowing hook */}
+      <g>
+        {tiles
+          .filter((t) => t.enemy !== "none")
+          .map((t) => {
+            const style = ENEMY_STYLE[t.enemy as keyof typeof ENEMY_STYLE];
+            const hooked = t.enemy === "hooked";
+            const { x, y } = hexToPixel(t.hex);
+
+            return (
+              <g key={`enemy-${t.hex.col}-${t.hex.row}`}>
+                {/* Inside the max-range ring, so both stay readable. */}
+                <polygon
+                  points={hexPoints(t.hex, 0.86)}
+                  fill={style.fill}
+                  stroke={style.stroke}
+                  strokeWidth={hooked ? 2.8 : 2}
+                  strokeDasharray={style.dashed ? "5 5" : undefined}
+                />
+                <EnemyToken
+                  cx={x}
+                  cy={y - 4}
+                  height={HEX_H * 0.5}
+                  color={style.token}
+                />
+                {hooked && (
+                  /* Badged into the corner rather than over the token, so the
+                     body underneath the hook stays visible. */
+                  <g filter="url(#goldGlow)" className="animate-range-pulse">
+                    <HookToken
+                      cx={x + HEX_W * 0.25}
+                      cy={y - HEX_H * 0.22}
+                      height={HEX_H * 0.42}
+                    />
+                  </g>
+                )}
+                {t.dist !== null && (
+                  <text
+                    x={x}
+                    y={y + HEX_H * 0.38}
+                    textAnchor="middle"
+                    className="font-mono pointer-events-none"
+                    fontSize={13}
+                    fontWeight={hooked ? 700 : 400}
+                    fill={hooked ? "#fde047" : style.token}
+                  >
+                    {t.dist}
+                  </text>
+                )}
+              </g>
+            );
+          })}
+      </g>
+
       {/* Target marker */}
       {target && (
         <g>
@@ -334,7 +423,9 @@ export default function Board({
       <g className="font-mono pointer-events-none">
         {tiles.map((t) => {
           const { x, y } = hexToPixel(t.hex);
-          if (t.isPesci || t.isTarget) return null;
+          // Occupied tiles carry their own marker (and, for enemies, their own
+          // distance beneath it) — a centred label would sit under the token.
+          if (t.isPesci || t.isTarget || t.enemy !== "none") return null;
 
           // Distances are only worth reading where an enemy could stand, so
           // everything else keeps its name and the board stays legible.
@@ -400,9 +491,15 @@ export default function Board({
         {tiles.map((t) => {
           const isHovered = sameHex(hovered, t.hex);
           const playable = t.action !== "none";
+          // A playable tile with nothing to do is the enemy line-up being
+          // full — the middle ground is the only other dead tile.
+          const blocked =
+            t.zone === "neutral"
+              ? "neutral middle, nobody stands here"
+              : "enemy line-up is full, remove one first";
           const label = [
             hexName(t.hex),
-            playable ? `${t.zone} side` : "neutral middle, nobody stands here",
+            playable ? `${t.zone} side` : blocked,
             t.dist === null
               ? null
               : t.isPesci
@@ -410,6 +507,7 @@ export default function Board({
                 : `${t.dist} tiles from Pesci`,
             t.isTarget ? "selected target" : null,
             t.isIdeal ? "ideal position" : null,
+            ENEMY_HINT[t.enemy],
             ACTION_HINT[t.action],
           ]
             .filter(Boolean)
